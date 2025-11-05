@@ -1,0 +1,523 @@
+﻿@model Frontend_MVC.ViewModels.AccountListViewModel
+@using Frontend_MVC.ViewModels;
+@{
+    ViewData["Title"] = "Quản lý Tài khoản";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- === COPY/ADAPT CSS === -->
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        h1 { margin-bottom: 20px; color: #333; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .filters { display: flex; gap: 10px; flex-wrap: wrap; } /* Container for search and role filter */
+        .search-form { display: flex; gap: 8px; }
+        .role-filter select { min-width: 150px; }
+        .table-container { overflow-x: auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin-top: 20px; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+        .table thead th { background-color: #e9ecef; border-bottom: 2px solid #dee2e6; text-align: left; padding: 12px 15px; vertical-align: middle; }
+        .table tbody td { border-top: 1px solid #dee2e6; padding: 12px 15px; vertical-align: middle; }
+        .table tbody tr:nth-child(even) { background-color: #f9f9f9; }
+        .table tbody tr:hover { background-color: #f1f1f1; }
+        .action-buttons { white-space: nowrap; text-align: right; }
+        .action-buttons .btn { margin-left: 5px; }
+        .action-buttons .btn:first-child { margin-left: 0; }
+        .role-admin { font-weight: bold; color: #007bff; } /* Blue for Admin */
+        .role-staff { color: #28a745; } /* Green for Staff */
+        /* Modal Validation */
+        .modal-body .invalid-feedback { display: block; font-size: 80%; color: #dc3545; }
+        .modal-body .is-invalid { border-color: #dc3545; }
+
+        @@media (max-width: 992px) { /* Adjust breakpoint if needed */
+             .toolbar { flex-direction: column; align-items: stretch; }
+             .filters { width: 100%; justify-content: space-between;} /* Allow filters to wrap */
+        }
+        @@media (max-width: 768px) {
+            .filters { flex-direction: column; gap: 10px; }
+            .search-form { width: 100%; }
+            .search-form input[type="text"] { flex-grow: 1; }
+            .role-filter { width: 100%; }
+            .role-filter select { width: 100%; }
+            h1 { font-size: 1.8rem; }
+            .table thead { display: none; }
+            .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
+            .table tr { margin-bottom: 15px; border: 1px solid #dee2e6; border-radius: 4px; }
+            .table td { text-align: right; padding-left: 50%; position: relative; border: none; border-bottom: 1px solid #eee; }
+             .table td:last-child { border-bottom: none; }
+            .table td::before { content: attr(data-label); position: absolute; left: 10px; width: calc(50% - 20px); padding-right: 10px; white-space: nowrap; text-align: left; font-weight: bold; }
+            .action-buttons { text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1>@ViewData["Title"]</h1>
+
+        <!-- Toolbar: Add Button + Filters -->
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="openCreateModal()">➕ Thêm Tài khoản mới</button>
+
+            <!-- Filters Form -->
+            <form asp-action="Index" method="get" class="filters form-inline">
+                <!-- Search Box -->
+                <div class="search-form form-group mr-2 mb-2 mb-md-0">
+                    <input type="text" name="searchString" value="@Model.SearchString" class="form-control" placeholder="Tìm kiếm Email/Tên..." />
+                    <button type="submit" class="btn btn-success"><i class="fas fa-search"></i> Tìm</button>
+                </div>
+                <!-- Role Filter Dropdown -->
+                <div class="role-filter form-group mb-2 mb-md-0">
+                    <select name="role" asp-for="SelectedRole" asp-items="@Model.RoleOptions" class="form-control" onchange="this.form.submit()">
+                        <option value="">-- Tất cả vai trò --</option>
+                    </select>
+                </div>
+                @if (!string.IsNullOrEmpty(Model.SearchString) || Model.SelectedRole.HasValue)
+                {
+                    <a asp-action="Index" class="btn btn-secondary mb-2 mb-md-0">Xóa bộ lọc</a>
+                }
+            </form>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.Error))
+        {
+            <div class="alert alert-danger">@ViewBag.Error</div>
+        }
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success">@TempData["Success"]</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+
+
+        <!-- Table Displaying Accounts -->
+        <div class="table-container">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Tên hiển thị</th>
+                        <th>Vai trò</th>
+                        <th style="width: 220px; text-align: right;">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Accounts.Any())
+                    {
+                        @foreach (var account in Model.Accounts)
+                        {
+                            <tr>
+                                <td data-label="Email">@account.AccountEmail</td>
+                                <td data-label="Tên hiển thị">@account.AccountName</td>
+                                <td data-label="Vai trò" class="@(account.AccountRole == 1 ? "role-admin" : "role-staff")">@account.RoleName</td>
+                                <td data-label="Hành động" class="action-buttons">
+                                    <button class="btn btn-sm btn-info" onclick="openChangePasswordModal(@account.AccountId, '@account.AccountEmail')">
+                                        <i class="fas fa-key"></i> Đổi MK
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="openEditModal(@account.AccountId)">
+                                        <i class="fas fa-edit"></i> Sửa
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteAccount(@account.AccountId)">
+                                        <i class="fas fa-trash"></i> Xóa
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="4" class="text-center" style="padding: 20px;">Không tìm thấy tài khoản nào.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ========================== -->
+        <!--   MODAL CREATE/EDIT USER   -->
+        <!-- ========================== -->
+        <div class="modal fade" id="accountModal" tabindex="-1" role="dialog" aria-labelledby="accountModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="accountModalLabel">Thêm Tài khoản mới</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="modalAlertPlaceholder"></div>
+                        <form id="accountForm">
+                            <input type="hidden" id="AccountId" value="0">
+
+                            <div class="form-group">
+                                <label for="AccountEmail">Email</label>
+                                <input type="email" class="form-control" id="AccountEmail" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="AccountName">Tên hiển thị</label>
+                                <input type="text" class="form-control" id="AccountName" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <!-- Password fields - Only shown for CREATE -->
+                            <div id="passwordFields">
+                                <div class="form-group">
+                                    <label for="AccountPassword">Mật khẩu</label>
+                                    <input type="password" class="form-control" id="AccountPassword" required minlength="6">
+                                    <small class="form-text text-muted">Ít nhất 6 ký tự.</small>
+                                    <div class="invalid-feedback"></div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ConfirmPassword">Xác nhận mật khẩu</label>
+                                    <input type="password" class="form-control" id="ConfirmPassword" required>
+                                    <div class="invalid-feedback"></div>
+                                </div>
+                            </div>
+                            <!-- End Password fields -->
+
+                            <div class="form-group">
+                                <label for="AccountRole">Vai trò</label>
+                                <select class="form-control" id="AccountRole" required>
+                                    <option value="">-- Chọn vai trò --</option>
+                                    <option value="1">Staff</option>
+                                    <option value="2">Lecturer</option>
+                                </select>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-primary" id="saveAccountBtn">Lưu Tài khoản</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================== -->
+        <!-- MODAL CHANGE PASSWORD      -->
+        <!-- ========================== -->
+        <div class="modal fade" id="passwordModal" tabindex="-1" role="dialog" aria-labelledby="passwordModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="passwordModalLabel">Đổi mật khẩu cho <span id="passwordUserEmail"></span></h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="passwordAlertPlaceholder"></div>
+                        <form id="passwordForm">
+                            <input type="hidden" id="PasswordAccountId" value="0">
+                            <!-- Requirement: Require old password -->
+                            <div class="form-group">
+                                <label for="CurrentPassword">Mật khẩu hiện tại</label>
+                                <input type="password" class="form-control" id="CurrentPassword" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                            <hr />
+                            <div class="form-group">
+                                <label for="NewPassword">Mật khẩu mới</label>
+                                <input type="password" class="form-control" id="NewPassword" required minlength="6">
+                                <small class="form-text text-muted">Ít nhất 6 ký tự.</small>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="ConfirmNewPassword">Xác nhận mật khẩu mới</label>
+                                <input type="password" class="form-control" id="ConfirmNewPassword" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-primary" id="savePasswordBtn">Lưu Mật khẩu</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- End container-fluid -->
+    <!-- jQuery and Bootstrap Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>
+
+    <!-- Custom JavaScript -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // --- General Modal Elements & Helpers ---
+            const accountModal = $('#accountModal');
+            const accountModalLabel = $('#accountModalLabel');
+            const accountForm = document.getElementById('accountForm');
+            const accountIdInput = document.getElementById('AccountId');
+            const saveAccountBtn = document.getElementById('saveAccountBtn');
+            const modalAlertPlaceholder = document.getElementById('modalAlertPlaceholder');
+            const passwordFieldsDiv = document.getElementById('passwordFields');
+
+            const passwordModal = $('#passwordModal');
+            const passwordForm = document.getElementById('passwordForm');
+            const passwordAccountIdInput = document.getElementById('PasswordAccountId');
+            const passwordUserEmailSpan = document.getElementById('passwordUserEmail');
+            const savePasswordBtn = document.getElementById('savePasswordBtn');
+            const passwordAlertPlaceholder = document.getElementById('passwordAlertPlaceholder');
+
+            function showModalAlert(placeholder, message, type = 'danger') {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">${message}<button type="button" class="close" data-dismiss="alert">&times;</button></div>`;
+                placeholder.innerHTML = '';
+                placeholder.append(wrapper);
+            }
+
+            function clearModalState(form, placeholder) {
+                placeholder.innerHTML = '';
+                $(form).find('.is-invalid').removeClass('is-invalid');
+                $(form).find('.invalid-feedback').text('');
+            }
+
+            function handleApiError(responseStatus, errorData, placeholder, formElement = null) {
+                 let message = `Lỗi ${responseStatus}: `;
+                 if (errorData) {
+                      // Handle ASP.NET Core validation errors (sent with status 400)
+                     if (responseStatus === 400 && typeof errorData === 'object' && !errorData.message) {
+                          message = 'Vui lòng kiểm tra lại thông tin:';
+                          let errorHtml = '<ul>';
+                          for (const key in errorData) {
+                              if (errorData.hasOwnProperty(key)) {
+                                   const inputId = key.charAt(0).toUpperCase() + key.slice(1); // Capitalize first letter (e.g., accountEmail -> AccountEmail)
+                                   const inputField = document.getElementById(inputId);
+                                   if (inputField) {
+                                       inputField.classList.add('is-invalid');
+                                       let feedback = inputField.nextElementSibling;
+                                       while (feedback && !feedback.classList.contains('invalid-feedback')) { feedback = feedback.nextElementSibling; }
+                                       if (feedback) feedback.textContent = errorData[key].join(' ');
+                                   }
+                                  errorData[key].forEach(err => { errorHtml += `<li>${err}</li>`; });
+                              }
+                          }
+                           errorHtml += '</ul>';
+                           message += errorHtml;
+                     }
+                      // Handle specific error messages from API
+                     else if (errorData.message) {
+                         message = errorData.message;
+                     } else {
+                         message += "Lỗi không xác định từ API.";
+                     }
+                 } else {
+                     message += "Không nhận được phản hồi lỗi chi tiết.";
+                 }
+                showModalAlert(placeholder, message);
+            }
+
+
+            // --- CREATE/EDIT MODAL LOGIC ---
+            window.openCreateModal = () => {
+                clearModalState(accountForm, modalAlertPlaceholder);
+                accountForm.reset();
+                accountIdInput.value = '0';
+                accountModalLabel.text('Thêm Tài khoản mới');
+                saveAccountBtn.textContent = 'Lưu Tài khoản';
+                passwordFieldsDiv.style.display = 'block'; // Show password fields
+                $('#AccountPassword').prop('required', true); // Make password required
+                $('#ConfirmPassword').prop('required', true);
+                accountModal.modal('show');
+            };
+
+            window.openEditModal = async (id) => {
+                clearModalState(accountForm, modalAlertPlaceholder);
+                accountForm.reset();
+                accountModalLabel.text('Cập nhật Tài khoản');
+                saveAccountBtn.textContent = 'Cập nhật';
+                accountIdInput.value = id;
+                passwordFieldsDiv.style.display = 'none'; // Hide password fields for edit
+                $('#AccountPassword').prop('required', false); // Password not required for update info
+                $('#ConfirmPassword').prop('required', false);
+
+
+                const url = `@Url.Action("GetAccount", "Account")?id=${id}`;
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const accountData = await response.json(); // Expect AccountUpdateViewModel
+                        document.getElementById('AccountEmail').value = accountData.accountEmail;
+                        document.getElementById('AccountName').value = accountData.accountName;
+                        document.getElementById('AccountRole').value = accountData.accountRole;
+                        accountModal.modal('show');
+                    } else {
+                        const error = await response.json();
+                        alert(`Lỗi tải dữ liệu tài khoản: ${error.message || response.statusText}`);
+                    }
+                } catch (error) {
+                    alert('Lỗi kết nối khi tải dữ liệu: ' + error.message);
+                }
+            };
+
+            saveAccountBtn.addEventListener('click', async () => {
+                clearModalState(accountForm, modalAlertPlaceholder);
+                saveAccountBtn.disabled = true;
+
+                const accountId = parseInt(accountIdInput.value);
+                const isUpdate = accountId > 0;
+                saveAccountBtn.textContent = isUpdate ? 'Đang cập nhật...' : 'Đang lưu...';
+                const url = isUpdate ? '@Url.Action("Update", "Account")' : '@Url.Action("Create", "Account")';
+
+                let formData = {
+                    accountId: accountId,
+                    accountEmail: document.getElementById('AccountEmail').value.trim(),
+                    accountName: document.getElementById('AccountName').value.trim(),
+                    accountRole: parseInt(document.getElementById('AccountRole').value)
+                };
+
+                // Add password fields only for Create
+                if (!isUpdate) {
+                    formData.accountPassword = document.getElementById('AccountPassword').value;
+                    formData.confirmPassword = document.getElementById('ConfirmPassword').value; // For frontend validation if needed
+
+                    // Frontend check if passwords match (optional, as backend checks too)
+                     if(formData.accountPassword !== formData.confirmPassword) {
+                          $('#ConfirmPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Mật khẩu xác nhận không khớp.');
+                          saveAccountBtn.disabled = false;
+                          saveAccountBtn.textContent = 'Lưu Tài khoản';
+                          return;
+                     }
+                      if(formData.accountPassword.length < 6) {
+                           $('#AccountPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Mật khẩu phải có ít nhất 6 ký tự.');
+                           saveAccountBtn.disabled = false;
+                           saveAccountBtn.textContent = 'Lưu Tài khoản';
+                           return;
+                      }
+                }
+                 // Basic frontend checks for required fields
+                 let valid = true;
+                 $(accountForm).find('[required]').each(function() {
+                     if (!$(this).val() && $(this).is(':visible')) { // Check only visible required fields
+                         $(this).addClass('is-invalid').siblings('.invalid-feedback').text('Trường này là bắt buộc.');
+                         valid = false;
+                     }
+                 });
+                 if (!valid) {
+                     saveAccountBtn.disabled = false;
+                     saveAccountBtn.textContent = isUpdate ? 'Cập nhật' : 'Lưu Tài khoản';
+                     return;
+                 }
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        accountModal.modal('hide');
+                        location.reload();
+                    } else {
+                        const errorData = await response.json();
+                        handleApiError(response.status, errorData, modalAlertPlaceholder, accountForm);
+                    }
+                } catch (error) {
+                    showModalAlert(modalAlertPlaceholder,'Lỗi kết nối: ' + error.message);
+                } finally {
+                    saveAccountBtn.disabled = false;
+                    saveAccountBtn.textContent = isUpdate ? 'Cập nhật' : 'Lưu Tài khoản';
+                }
+            });
+
+            // --- CHANGE PASSWORD MODAL LOGIC ---
+             window.openChangePasswordModal = (id, email) => {
+                 clearModalState(passwordForm, passwordAlertPlaceholder);
+                 passwordForm.reset();
+                 passwordAccountIdInput.value = id;
+                 passwordUserEmailSpan.textContent = email; // Show email in title
+                 passwordModal.modal('show');
+            };
+
+            savePasswordBtn.addEventListener('click', async () => {
+                clearModalState(passwordForm, passwordAlertPlaceholder);
+                savePasswordBtn.disabled = true;
+                savePasswordBtn.textContent = 'Đang lưu...';
+
+                 const formData = {
+                    accountId: parseInt(passwordAccountIdInput.value),
+                    currentPassword: document.getElementById('CurrentPassword').value,
+                    newPassword: document.getElementById('NewPassword').value,
+                    confirmNewPassword: document.getElementById('ConfirmNewPassword').value
+                };
+
+                 // Frontend validation
+                 let valid = true;
+                  if (!formData.currentPassword) { $('#CurrentPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Bắt buộc.'); valid = false; }
+                  if (!formData.newPassword) { $('#NewPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Bắt buộc.'); valid = false; }
+                  if (formData.newPassword && formData.newPassword.length < 6) { $('#NewPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Ít nhất 6 ký tự.'); valid = false; }
+                  if (!formData.confirmNewPassword) { $('#ConfirmNewPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Bắt buộc.'); valid = false; }
+                  if (formData.newPassword && formData.confirmNewPassword && formData.newPassword !== formData.confirmNewPassword) {
+                       $('#ConfirmNewPassword').addClass('is-invalid').siblings('.invalid-feedback').text('Mật khẩu xác nhận không khớp.');
+                       valid = false;
+                  }
+
+                 if (!valid) {
+                     savePasswordBtn.disabled = false;
+                     savePasswordBtn.textContent = 'Lưu Mật khẩu';
+                     return;
+                 }
+
+                 const url = '@Url.Action("ChangePassword", "Account")';
+
+                try {
+                     const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData) // Send ViewModel data
+                    });
+                     if (response.ok) {
+                        passwordModal.modal('hide');
+                        // Show success message on main page (optional)
+                         showModalAlert($('#modalAlertPlaceholder').get(0), 'Đổi mật khẩu thành công!', 'success'); // Reusing alert placeholder
+                     } else {
+                        const errorData = await response.json();
+                        handleApiError(response.status, errorData, passwordAlertPlaceholder, passwordForm);
+                    }
+                } catch(error) {
+                    showModalAlert(passwordAlertPlaceholder, 'Lỗi kết nối: ' + error.message);
+                } finally {
+                    savePasswordBtn.disabled = false;
+                    savePasswordBtn.textContent = 'Lưu Mật khẩu';
+                }
+            });
+
+
+            // --- DELETE ACCOUNT LOGIC ---
+            window.deleteAccount = async (id) => {
+                if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản ID ${id} không?`)) {
+                    return;
+                }
+                const url = '@Url.Action("Delete", "Account")';
+                const formData = new FormData();
+                formData.append('id', id);
+
+                try {
+                    const response = await fetch(url, { method: 'POST', body: formData });
+                    if (response.ok) {
+                        alert('Xóa tài khoản thành công!');
+                        location.reload();
+                    } else {
+                         let errorMsg = `Xóa thất bại (${response.status})`;
+                         try { const errorData = await response.json(); errorMsg += `: ${errorData.message || response.statusText}`; } catch { errorMsg += `: ${response.statusText}`; }
+                         alert(errorMsg);
+                    }
+                } catch (error) {
+                    alert('Lỗi kết nối khi xóa: ' + error.message);
+                }
+            };
+
+        }); // End DOMContentLoaded
+    </script>
+</body>
+</html>

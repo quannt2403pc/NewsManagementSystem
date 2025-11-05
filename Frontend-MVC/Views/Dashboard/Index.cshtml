@@ -1,0 +1,498 @@
+﻿@model Frontend_MVC.ViewModels.DashboardViewModel
+@using Frontend_MVC.ViewModels
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Bảng điều khiển (Admin)";
+    var apiBaseUrl = Configuration["ApiBaseUrl"]?.TrimEnd('/');
+
+    // Serialize dữ liệu chart để truyền cho JavaScript
+    var categoryDataJson = System.Text.Json.JsonSerializer.Serialize(Model.DashboardData.CategoryArticleCounts);
+    var statusDataJson = System.Text.Json.JsonSerializer.Serialize(Model.DashboardData.StatusArticleCounts);
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <!-- CSS Libraries -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+
+    <style>
+        body {
+            background-color: #f4f7f6;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border: none;
+            border-radius: 8px;
+        }
+
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+            .filter-bar .form-group {
+                margin-bottom: 0;
+            }
+        /* Reset margin for form-inline */
+
+        /* Chart container */
+        .chart-container {
+            position: relative;
+            height: 350px;
+            width: 100%;
+        }
+
+        /* Trending table */
+        .table-responsive {
+            max-height: 400px;
+        }
+
+        /* Notification Bell (Copy từ file trước) */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            z-index: 1070;
+        }
+
+            .notification-container .dropdown-menu {
+                min-width: 300px;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+
+            .notification-container .dropdown-item {
+                white-space: normal;
+                font-size: 0.9rem;
+                border-bottom: 1px solid #eee;
+            }
+
+                .notification-container .dropdown-item:last-child {
+                    border-bottom: none;
+                }
+
+                .notification-container .dropdown-item a {
+                    text-decoration: none !important;
+                    color: #333 !important;
+                    display: block;
+                    padding: .5rem 1rem;
+                }
+
+                    .notification-container .dropdown-item a:hover {
+                        background-color: #f8f9fa;
+                    }
+
+            .notification-container .text-muted {
+                padding: .5rem 1rem;
+            }
+
+        #notification-icon.has-new {
+            color: #dc3545;
+            animation: ring 1.5s ease-in-out infinite;
+        }
+
+        #notification-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.7em;
+        }
+
+        @@keyframes ring {
+            0% {
+                transform: rotate(0)
+            }
+
+            10% {
+                transform: rotate(14deg)
+            }
+
+            20% {
+                transform: rotate(-8deg)
+            }
+
+            30% {
+                transform: rotate(14deg)
+            }
+
+            40% {
+                transform: rotate(-4deg)
+            }
+
+            50% {
+                transform: rotate(10deg)
+            }
+
+            60% {
+                transform: rotate(0)
+            }
+
+            100% {
+                transform: rotate(0)
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Notification Area -->
+    <div class="notification-container dropdown">
+        <a class="nav-link" href="#" id="notificationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Thông báo">
+            <i id="notification-icon" class="fas fa-bell fa-lg"></i>
+            <span id="notification-count" class="badge badge-danger badge-pill" style="display: none;"></span>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationDropdown" id="notification-list">
+            <li class="dropdown-item text-muted small" id="no-notification-message">Không có thông báo mới</li>
+        </ul>
+    </div>
+
+    <div class="container-fluid">
+        <h1>@ViewData["Title"]</h1>
+
+        <!-- Hiển thị lỗi nếu có -->
+        @if (!string.IsNullOrEmpty(ViewBag.Error))
+        {
+            <div class="alert alert-danger">@ViewBag.Error</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+
+
+        <!-- ======================= -->
+        <!-- FILTER BAR              -->
+        <!-- ======================= -->
+        <div class="filter-bar">
+            <form asp-action="Index" method="get" class="form-inline w-100 d-flex justify-content-between flex-wrap">
+                <div class="form-group mr-3 mb-2">
+                    <label for="startDate" class="mr-2">Từ ngày:</label>
+                    <input type="date" class="form-control" id="startDate" name="startDate" value="@Model.StartDate">
+                </div>
+                <div class="form-group mr-3 mb-2">
+                    <label for="endDate" class="mr-2">Đến ngày:</label>
+                    <input type="date" class="form-control" id="endDate" name="endDate" value="@Model.EndDate">
+                </div>
+                <div class="form-group mr-3 mb-2">
+                    <label for="categoryId" class="mr-2">Danh mục:</label>
+                    <select class="form-control" id="categoryId" name="categoryId" asp-for="CategoryId" asp-items="@(new SelectList(Model.AvailableCategories, "CategoryID", "CategoryName"))">
+                        <option value="">-- Tất cả --</option>
+                    </select>
+                </div>
+                <div class="form-group mr-3 mb-2">
+                    <label for="status" class="mr-2">Trạng thái:</label>
+                    <select class="form-control" id="status" name="status" asp-for="Status" asp-items="@Model.StatusOptions">
+                        <option value="">-- Tất cả --</option>
+                    </select>
+                </div>
+                <div class="ml-auto mb-2">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Lọc</button>
+                    <!-- Nút Xuất Excel -->
+                    <a asp-action="ExportExcel" asp-all-route-data="@Context.Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString())" class="btn btn-success ml-2">
+                        <i class="fas fa-file-excel"></i> Xuất Excel
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- ======================= -->
+        <!-- CHARTS                  -->
+        <!-- ======================= -->
+        <div class="row">
+            <div class="col-lg-5 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">Bài viết theo Danh mục</div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="categoryPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-7 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">Bài viết theo Trạng thái</div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="statusBarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================= -->
+        <!-- TRENDING ARTICLES       -->
+        <!-- ======================= -->
+        <div class="card">
+            <div class="card-header">Bài viết Thịnh hành (Trending)</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tiêu đề</th>
+                                <th>Danh mục</th>
+                                <th class="text-right">Lượt xem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.TrendingArticles.Any())
+                            {
+                                @foreach (var item in Model.TrendingArticles.Take(5)) // Lấy 5 bài
+                                {
+                                    <tr>
+                                        <td>
+                                            <a asp-controller="NewsArticle" asp-action="Detail" asp-route-id="@item.NewsArticleID" target="_blank">
+                                                @item.NewsTitle
+                                            </a>
+                                        </td>
+                                        <td>@item.CategoryName</td>
+                                        <td class="text-right">@item.ViewCount.ToString("N0")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="3" class="text-center p-4">Không có dữ liệu trending.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- End container-fluid -->
+    <!-- JS Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js" integrity="sha512-VEd+nq25CkR676O+pLBnDW09R7VQX9Mdiij052gVCp5yVH3jGtH70Ho/UUv4mJDsEdTvqRCFZg0NKGiojGnUCw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- SignalR Client JS (Ensure path is correct) -->
+    <script src="~/lib/signalr/signalr.min.js"></script>
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js" integrity="sha256-Y26AMvaIfrZ1EQU49pf6H4QzVTrOI8m9wQYKkftBt4s=" crossorigin="anonymous"></script>
+
+    <!-- ======================= -->
+    <!-- CHART.JS LOGIC          -->
+    <!-- ======================= -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Helper function to generate random colors ---
+            const getChartColors = (count) => {
+                const colors = [
+                    '#007bff', '#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6c757d',
+                    '#343a40', '#fd7e14', '#6610f2', '#e83e8c'
+                ];
+                let result = [];
+                for (let i = 0; i < count; i++) {
+                    result.push(colors[i % colors.length]); // Loop colors
+                }
+                return result;
+            };
+
+            // --- 1. Category Pie Chart ---
+            const pieCtx = document.getElementById('categoryPieChart')?.getContext('2d');
+            if (pieCtx) {
+                const categoryData = @Html.Raw(categoryDataJson); // Lấy dữ liệu từ C#
+                const categoryLabels = categoryData.map(d => d.label);
+                const categoryValues = categoryData.map(d => d.value);
+
+                new Chart(pieCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: categoryLabels,
+                        datasets: [{
+                            label: 'Số lượng bài viết',
+                            data: categoryValues,
+                            backgroundColor: getChartColors(categoryValues.length),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'right' }
+                        }
+                    }
+                });
+            }
+
+            // --- 2. Status Bar Chart ---
+            const barCtx = document.getElementById('statusBarChart')?.getContext('2d');
+            if (barCtx) {
+                const statusData = @Html.Raw(statusDataJson);
+                const statusLabels = statusData.map(d => d.label);
+                const statusValues = statusData.map(d => d.value);
+
+                new Chart(barCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: statusLabels,
+                        datasets: [{
+                            label: 'Số lượng bài viết',
+                            data: statusValues,
+                            backgroundColor: getChartColors(statusValues.length),
+                            borderColor: getChartColors(statusValues.length),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y', // Làm biểu đồ nằm ngang (Bar)
+                        scales: {
+                            x: { beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { display: false } // Ẩn legend cho bar chart
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- ======================= -->
+    <!-- SIGNALR NOTIFICATION JS -->
+    <!-- (Copy từ file trước)    -->
+    <!-- ======================= -->
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Toastr config
+            toastr.options = { "closeButton": true, "progressBar": true, "positionClass": "toast-top-right", "timeOut": "10000", "extendedTimeOut": "2000" };
+
+            // --- Notification Elements ---
+            const notificationIcon = document.getElementById("notification-icon");
+            const notificationCount = document.getElementById("notification-count");
+            const notificationList = document.getElementById("notification-list");
+
+            // --- Notification Storage (Using sessionStorage) ---
+            const MAX_NOTIFICATIONS = 10;
+            let recentNotifications = JSON.parse(sessionStorage.getItem('recentNotifications') || '[]');
+            let unreadCount = parseInt(sessionStorage.getItem('unreadNotificationCount') || '0');
+
+            // --- Function to add a notification ---
+            function addRecentNotification(notification) {
+                recentNotifications.unshift(notification);
+                if (recentNotifications.length > MAX_NOTIFICATIONS) recentNotifications.pop();
+                sessionStorage.setItem('recentNotifications', JSON.stringify(recentNotifications));
+
+                if (!$('#notificationDropdown').parent().hasClass('show')) {
+                    unreadCount++;
+                    sessionStorage.setItem('unreadNotificationCount', unreadCount.toString());
+                }
+                updateNotificationUI();
+            }
+
+            // --- Function to update the bell dropdown UI ---
+            function updateNotificationUI() {
+                if (!notificationList || !notificationIcon || !notificationCount) return;
+                notificationList.innerHTML = '';
+                if (recentNotifications.length === 0) {
+                    notificationList.innerHTML = '<li class="dropdown-item text-muted small" id="no-notification-message">Không có thông báo mới</li>';
+                    notificationIcon.classList.remove('has-new');
+                    notificationCount.style.display = 'none';
+                    return;
+                }
+                recentNotifications.forEach(noti => {
+                    const listItem = document.createElement('li');
+                    const linkTarget = noti.articleUrl ? 'target="_blank"' : '';
+                    const href = noti.articleUrl || '#';
+                    const link = document.createElement('a');
+                    link.className = 'dropdown-item small';
+                    link.href = href;
+                    if (noti.articleUrl) link.target = "_blank";
+                    const messageSpan = document.createElement('span');
+                    messageSpan.textContent = noti.message;
+                    messageSpan.style.fontWeight = "bold";
+                    const timeSpan = document.createElement('small');
+                    timeSpan.className = 'd-block text-muted';
+                    timeSpan.textContent = noti.timestamp ? new Date(noti.timestamp).toLocaleString("vi-VN") : new Date().toLocaleString("vi-VN");
+                    link.appendChild(messageSpan);
+                    link.appendChild(timeSpan);
+                    listItem.appendChild(link);
+                    notificationList.appendChild(listItem);
+                });
+                if (unreadCount > 0) {
+                    notificationIcon.classList.add('has-new');
+                    notificationCount.textContent = unreadCount > 9 ? '9+' : unreadCount.toString();
+                    notificationCount.style.display = 'inline-block';
+                } else {
+                    notificationIcon.classList.remove('has-new');
+                    notificationCount.style.display = 'none';
+                }
+            }
+
+            // --- Event: Reset unread count when dropdown is opened ---
+            $('#notificationDropdown').on('show.bs.dropdown', function () {
+                unreadCount = 0;
+                sessionStorage.setItem('unreadNotificationCount', '0');
+                updateNotificationUI();
+            });
+
+            // --- SignalR Connection ---
+            const signalRHubUrl = "@(apiBaseUrl)/hubs/notifications";
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl(signalRHubUrl)
+                .configureLogging(signalR.LogLevel.Warning)
+                .withAutomaticReconnect()
+                .build();
+
+            // --- Event: Listen for "ReceiveNotification" from Hub ---
+            connection.on("ReceiveNotification", (data) => {
+                console.log("📢 Notification received:", data);
+                if (!data || !data.message) return;
+                const notification = { message: data.message, articleUrl: data.articleUrl, timestamp: new Date().toISOString() };
+                let toastMessage = notification.message;
+                if (notification.articleUrl) {
+                    toastMessage = `<a href="${notification.articleUrl}" target="_blank" style="color: white; text-decoration: underline;">${notification.message}</a>`;
+                }
+                toastr.success(toastMessage, 'Thông báo mới!');
+                addRecentNotification(notification);
+            });
+
+            // --- Start Connection ---
+            async function startSignalRConnection() {
+                try {
+                    await connection.start();
+                    console.log("✅ SignalR connected to", signalRHubUrl);
+                } catch (err) {
+                    console.error("❌ SignalR connection error:", err);
+                    setTimeout(startSignalRConnection, 5000);
+                }
+            }
+            connection.onclose(async () => { console.log("SignalR Connection Closed. Reconnecting..."); });
+
+            startSignalRConnection();
+            updateNotificationUI(); // Initial UI update
+
+        }); // End DOMContentLoaded for SignalR
+    </script>
+</body>
+</html>

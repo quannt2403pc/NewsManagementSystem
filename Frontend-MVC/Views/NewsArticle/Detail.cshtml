@@ -1,0 +1,180 @@
+﻿@model Frontend_MVC.ViewModels.NewsArticleDetailViewModel
+@{
+    ViewData["Title"] = Model.Article.NewsTitle;
+}
+
+<style>
+    /* Style này cung cấp "bố cục đọc sạch sẽ và đáp ứng"
+      theo yêu cầu 4.5
+    */
+    .article-detail-container {
+        max-width: 900px; /* Giới hạn chiều rộng để dễ đọc */
+        margin: 20px auto; /* Căn giữa */
+        padding: 30px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        line-height: 1.7; /* Giãn dòng */
+    }
+
+    .article-header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+        line-height: 1.2;
+    }
+
+    /* Thông tin meta (tác giả, ngày đăng...) */
+    .article-meta {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        flex-wrap: wrap; /* Cho phép xuống dòng trên di động */
+        gap: 15px; /* Khoảng cách giữa các mục */
+    }
+
+    /* Ảnh bìa */
+    .article-cover-image {
+        width: 100%;
+        max-height: 500px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 25px;
+    }
+
+    /* Nội dung chính */
+    .article-content {
+        font-size: 1.1rem;
+        color: #333;
+    }
+
+    /* Style cơ bản nếu nội dung là HTML */
+    .article-content p { margin-bottom: 1.5rem; }
+    .article-content h2 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; }
+    .article-content h3 { font-size: 1.5rem; margin-top: 1.5rem; margin-bottom: 1rem; }
+    .article-content ul, .article-content ol { padding-left: 2rem; margin-bottom: 1.5rem; }
+
+    /* Thẻ Tags */
+    .article-tags {
+        margin-top: 30px;
+    }
+
+    .tag-badge {
+        display: inline-block;
+        padding: 5px 12px;
+        background-color: #e9ecef;
+        color: #495057;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+
+    /* === STYLE CHO BÀI VIẾT LIÊN QUAN === */
+    .related-articles {
+        margin-top: 40px;
+        padding-top: 30px;
+        border-top: 1px solid #eee;
+    }
+
+    .related-articles h3 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+
+    .related-item {
+        margin-bottom: 15px;
+    }
+
+    .related-item a {
+        font-size: 1.1rem;
+        font-weight: 500;
+        text-decoration: none;
+        color: #0056b3;
+    }
+
+    .related-item a:hover {
+        text-decoration: underline;
+    }
+
+    .related-item p {
+        font-size: 0.95rem;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+</style>
+
+<div class="article-detail-container">
+
+    <header class="article-header">
+        <h1>@Model.Article.NewsTitle</h1>
+        <div class="article-meta">
+            <span>
+                <strong>Tác giả:</strong> @(Model.Article.AuthorName ?? "Không rõ")
+            </span>
+            <span>
+                <strong>Ngày đăng:</strong> @(Model.Article.CreatedDate?.ToString("dd/MM/yyyy HH:mm") ?? "Không rõ")
+            </span>
+            <span>
+                <strong>Danh mục:</strong> @(Model.Article.CategoryName ?? "Chưa phân loại")
+            </span>
+
+            @if (Model.Article.ModifiedDate.HasValue)
+            {
+                <span style="color: #555; font-style: italic;">
+                    <strong>Cập nhật:</strong> @Model.Article.ModifiedDate.Value.ToString("dd/MM/yyyy HH:mm")
+                    (bởi @(Model.Article.UpdatedByName ?? "Không rõ"))
+                </span>
+            }
+        </div>
+    </header>
+
+    @if (!string.IsNullOrEmpty(Model.Article.ImageUrl))
+    {
+        <img src="@Model.Article.ImageUrl" alt="@Model.Article.NewsTitle" class="article-cover-image" />
+    }
+
+    <div class="article-content">
+        @Html.Raw(Model.Article.NewsContent)
+    </div>
+
+    @if (Model.Article.TagNames.Any())
+    {
+        <div class="article-tags">
+            <strong>Tags:</strong>
+            @foreach (var tagName in Model.Article.TagNames)
+            {
+                <span class="tag-badge">@tagName</span>
+            }
+        </div>
+    }
+
+    @if (Model.RelatedArticles.Any())
+    {
+        <aside class="related-articles">
+            <h3>Bài viết liên quan</h3>
+
+            @foreach (var related in Model.RelatedArticles.Take(3))
+            {
+                <div class="related-item">
+                    <a asp-action="Detail" asp-controller="NewsArticle" asp-route-id="@related.NewsArticleID">
+                        @related.NewsTitle
+                    </a>
+                    <p>@related.Headline</p>
+                </div>
+            }
+        </aside>
+    }
+    else
+    {
+        <aside class="related-articles">
+            <h3>Bài viết liên quan</h3>
+            <p>Không tìm thấy bài viết nào liên quan.</p>
+        </aside>
+    }
+
+</div>

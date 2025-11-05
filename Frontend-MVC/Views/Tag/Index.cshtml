@@ -1,0 +1,323 @@
+﻿@model Frontend_MVC.ViewModels.TagListViewModel
+@using Frontend_MVC.ViewModels;
+@{
+    // This ViewData is used by the <title> tag below
+    ViewData["Title"] = "Quản lý Thẻ (Tag)";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+
+    <style>
+        /* Basic body padding */
+        body {
+            padding: 20px;
+            background-color: #f8f9fa; /* Light grey background */
+        }
+        h1 { margin-bottom: 20px; color: #333; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .search-form { display: flex; gap: 8px; }
+        .search-form .btn { white-space: nowrap; }
+        .table-container { overflow-x: auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); margin-top: 20px; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+        .table thead th { background-color: #e9ecef; border-bottom: 2px solid #dee2e6; text-align: left; padding: 12px 15px; vertical-align: middle; }
+        .table tbody td { border-top: 1px solid #dee2e6; padding: 12px 15px; vertical-align: middle; }
+        .table tbody tr:nth-child(even) { background-color: #f9f9f9; }
+        .table tbody tr:hover { background-color: #f1f1f1; }
+        .action-buttons { white-space: nowrap; text-align: right; }
+        .action-buttons .btn { margin-left: 5px; }
+        .action-buttons .btn:first-child { margin-left: 0; }
+
+        /* Modal Validation */
+        .modal-body .invalid-feedback { display: block; font-size: 80%; color: #dc3545; }
+        .modal-body .is-invalid { border-color: #dc3545; }
+
+        /* Responsive adjustments */
+        @@media (max-width: 768px) {
+            body { padding: 10px; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .search-form { width: 100%; }
+            .search-form input[type="text"] { flex-grow: 1; }
+            h1 { font-size: 1.8rem; }
+            .table thead { display: none; }
+            .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
+            .table tr { margin-bottom: 15px; border: 1px solid #dee2e6; border-radius: 4px; }
+            .table td { text-align: right; padding-left: 50%; position: relative; border-top: none; border-bottom: 1px solid #eee; }
+            .table td:last-child { border-bottom: none; }
+            .table td::before { content: attr(data-label); position: absolute; left: 10px; width: calc(50% - 20px); padding-right: 10px; white-space: nowrap; text-align: left; font-weight: bold; }
+            .action-buttons { text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1>@ViewData["Title"]</h1>
+
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="openCreateModal()">➕ Thêm Thẻ mới</button>
+
+            <form asp-action="Index" method="get" class="search-form">
+                <input type="text" name="searchString" value="@Model.SearchString" class="form-control" placeholder="Tìm kiếm tên thẻ..." />
+                <button type="submit" class="btn btn-success">Tìm</button>
+                @if (!string.IsNullOrEmpty(Model.SearchString))
+                {
+                    <a asp-action="Index" class="btn btn-secondary">Xóa tìm kiếm</a>
+                }
+            </form>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.Error))
+        {
+            <div class="alert alert-danger">@ViewBag.Error</div>
+        }
+
+        <div class="table-container">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Tên Thẻ</th>
+                        <th style="width: 150px; text-align: right;">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Tags.Any())
+                    {
+                        @foreach (var tag in Model.Tags)
+                        {
+                            <tr>
+                                <td data-label="Tên Thẻ">@tag.TagName</td>
+                                <td data-label="Ghi chú">@tag.Note</td>
+                                <td data-label="Hành động" class="action-buttons">
+                                    <button class="btn btn-sm btn-secondary" onclick="openEditModal(@tag.TagId)">Sửa</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteTag(@tag.TagId)">Xóa</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="2" class="text-center" style="padding: 20px;">Không tìm thấy thẻ nào.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="modal fade" id="tagModal" tabindex="-1" role="dialog" aria-labelledby="tagModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="tagModalLabel">Thêm Thẻ mới</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="modalAlertPlaceholder"></div>
+                        <form id="tagForm">
+                            <input type="hidden" id="TagId" value="0">
+                            <div class="form-group">
+                                <label for="TagName">Tên Thẻ</label>
+                                <input type="text" class="form-control" id="TagName" required maxlength="100">
+                                <div class="invalid-feedback"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="Note">Ghi chú (Tùy chọn)</label>
+                                <textarea class="form-control" id="Note" rows="3" maxlength="500"></textarea>
+                                <div class="invalid-feedback"></div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-primary" id="saveTagBtn">Lưu Thẻ</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // DOM Elements
+            const tagModal = $('#tagModal'); // jQuery object for modal control
+            const modalTitle = $('#tagModalLabel');
+            const tagForm = document.getElementById('tagForm');
+            const tagIdInput = document.getElementById('TagId');
+            const tagNameInput = document.getElementById('TagName');
+            const saveButton = document.getElementById('saveTagBtn');
+            const alertPlaceholder = document.getElementById('modalAlertPlaceholder');
+            const noteInput = document.getElementById('Note'); 
+
+            // Helper: Show Alert in Modal
+            function showModalAlert(message, type = 'danger') {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span>&times;</span></button>
+                </div>`;
+                alertPlaceholder.innerHTML = ''; // Clear previous alerts
+                alertPlaceholder.append(wrapper);
+            }
+
+            // Helper: Clear Modal State (Alerts & Validation Errors)
+            function clearModalState() {
+                alertPlaceholder.innerHTML = '';
+                $(tagForm).find('.is-invalid').removeClass('is-invalid');
+                $(tagForm).find('.invalid-feedback').text('');
+            }
+
+            // --- Open Modal for CREATE ---
+            function openCreateModal() {
+                clearModalState();
+                tagForm.reset(); // Reset form values
+                tagIdInput.value = '0'; // Ensure ID is 0 for create
+                modalTitle.text('Thêm Thẻ mới');
+                saveButton.textContent = 'Lưu Thẻ';
+                tagModal.modal('show');
+            }
+             window.openCreateModal = openCreateModal; // Assign to global scope if button uses onclick
+
+            // --- Open Modal for EDIT ---
+            async function openEditModal(id) {
+                clearModalState();
+                tagForm.reset();
+                modalTitle.text('Cập nhật Thẻ');
+                saveButton.textContent = 'Cập nhật';
+                tagIdInput.value = id; // Set the ID
+
+                // Fetch tag data
+                const url = `@Url.Action("GetTag", "Tag")?id=${id}`;
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const tagData = await response.json();
+                        tagNameInput.value = tagData.tagName; 
+                        noteInput.value = tagData.note || "";// Populate form
+                        tagModal.modal('show'); // Show modal AFTER data is loaded
+                    } else {
+                        let errorMsg = `Lỗi tải dữ liệu thẻ (${response.status})`;
+                        try { const error = await response.json(); errorMsg += `: ${error.message || response.statusText}`; } catch { errorMsg += `: ${response.statusText}`; }
+                        alert(errorMsg);
+                    }
+                } catch (error) {
+                    alert('Lỗi kết nối khi tải dữ liệu thẻ: ' + error.message);
+                }
+            }
+             window.openEditModal = openEditModal; // Assign to global scope
+
+            // --- SAVE (Create or Update) ---
+            saveButton.addEventListener('click', async () => {
+                clearModalState();
+                saveButton.disabled = true;
+
+                const tagId = parseInt(tagIdInput.value);
+                const isUpdate = tagId > 0;
+                saveButton.textContent = isUpdate ? 'Đang cập nhật...' : 'Đang lưu...';
+
+                const url = isUpdate ? '@Url.Action("Update", "Tag")' : '@Url.Action("Create", "Tag")';
+
+                // Prepare data matching TagCreateUpdateViewModel
+                const formData = {
+                    tagId: tagId,
+                    tagName: tagNameInput.value.trim(),
+                    note: noteInput.value.trim()
+                };
+
+                // Basic frontend validation
+                if (!formData.tagName) {
+                     tagNameInput.classList.add('is-invalid');
+                     const feedback = tagNameInput.nextElementSibling && tagNameInput.nextElementSibling.classList.contains('invalid-feedback') ? tagNameInput.nextElementSibling : null;
+                     if(feedback) feedback.textContent = 'Tên thẻ không được để trống.';
+                     saveButton.disabled = false;
+                     saveButton.textContent = isUpdate ? 'Cập nhật' : 'Lưu Thẻ';
+                     return;
+                }
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST', // POST to Frontend Controller
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        tagModal.modal('hide');
+                        location.reload();
+                    } else {
+                        const errorData = await response.json();
+                         // Handle validation errors from Frontend ModelState
+                        if (response.status === 400 && typeof errorData === 'object' && !errorData.message) {
+                             let errorHtml = '<ul>';
+                             for (const key in errorData) {
+                                 if (errorData.hasOwnProperty(key)) {
+                                      const inputId = key.charAt(0).toUpperCase() + key.slice(1); // Capitalize first letter (e.g., tagName -> TagName)
+                                      const inputField = document.getElementById(inputId);
+                                      if (inputField) {
+                                          inputField.classList.add('is-invalid');
+                                          let feedback = inputField.nextElementSibling;
+                                          while(feedback && !feedback.classList.contains('invalid-feedback')) { feedback = feedback.nextElementSibling; }
+                                          if (feedback) feedback.textContent = errorData[key].join(' ');
+                                      }
+                                     errorData[key].forEach(err => { errorHtml += `<li>${err}</li>`; });
+                                 }
+                             }
+                              errorHtml += '</ul>';
+                              showModalAlert('Vui lòng kiểm tra lại thông tin:' + errorHtml);
+                        }
+                        else {
+                            // Handle specific API error messages (duplicate name, etc.)
+                            showModalAlert(errorData.message || `Đã xảy ra lỗi (${response.status})`);
+                        }
+                    }
+                } catch (error) {
+                    showModalAlert('Lỗi kết nối đến máy chủ: ' + error.message);
+                } finally {
+                    saveButton.disabled = false;
+                    saveButton.textContent = isUpdate ? 'Cập nhật' : 'Lưu Thẻ';
+                }
+            });
+
+            // --- DELETE ---
+            async function deleteTag(id) {
+                if (!confirm(`Bạn có chắc chắn muốn xóa thẻ ID ${id} không?`)) {
+                    return;
+                }
+
+                const url = '@Url.Action("Delete", "Tag")';
+                const formData = new FormData();
+                formData.append('id', id);
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        alert('Xóa thẻ thành công!');
+                        location.reload();
+                    } else {
+                        let errorMsg = `Xóa thất bại (${response.status})`;
+                        try { const errorData = await response.json(); errorMsg += `: ${errorData.message || response.statusText}`; } catch { errorMsg += `: ${response.statusText}`; }
+                        alert(errorMsg);
+                    }
+                } catch (error) {
+                    alert('Lỗi kết nối khi xóa: ' + error.message);
+                }
+            }
+             window.deleteTag = deleteTag; // Assign to global scope
+            
+        }); // End DOMContentLoaded
+    </script>
+</body>
+</html>

@@ -1,0 +1,357 @@
+﻿@model Frontend_MVC.ViewModels.AuditLogListViewModel
+@using Frontend_MVC.ViewModels
+@using System.Web
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Lịch sử Kiểm toán (Audit Log)";
+    var apiBaseUrl = Configuration["ApiBaseUrl"]?.TrimEnd('/');
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+
+    <style>
+        body { background-color: #f4f7f6; padding: 20px; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .card { box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: none; border-radius: 8px; }
+
+        /* Filter bar */
+        .filter-bar { padding: 20px; background-color: #fff; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .filter-bar .form-group { margin-bottom: 0; }
+
+        /* Table */
+        .table-container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .table { word-break: break-all; } /* Ngăn JSON làm vỡ layout */
+        .table th { background-color: #f8f9fa; }
+        .table .action-cell { width: 100px; text-align: center; }
+
+        /* Modal JSON Viewer */
+        .modal-body pre {
+            background-color: #282c34; /* Nền tối */
+            color: #abb2bf; /* Chữ xám nhạt */
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .json-key { color: #e06c75; } /* Màu đỏ cho key */
+        .json-string { color: #98c379; } /* Màu xanh lá cho string */
+        .json-number { color: #d19a66; } /* Màu cam cho số */
+        .json-null { color: #56b6c2; } /* Màu cyan cho null */
+
+        /* Notification Bell (Copy) */
+        .notification-container { position: fixed; top: 20px; right: 30px; z-index: 1070; }
+        .notification-container .dropdown-menu { min-width: 300px; max-height: 400px; overflow-y: auto; }
+        .notification-container .dropdown-item { white-space: normal; font-size: 0.9rem; border-bottom: 1px solid #eee; }
+        .notification-container .dropdown-item:last-child { border-bottom: none; }
+        .notification-container .dropdown-item a { text-decoration: none !important; color: #333 !important; display: block; padding: .5rem 1rem; }
+        .notification-container .text-muted { padding: .5rem 1rem; }
+        #notification-icon.has-new { color: #dc3545; animation: ring 1.5s ease-in-out infinite; }
+        #notification-count { position: absolute; top: -5px; right: -5px; font-size: 0.7em; }
+        @@keyframes ring { 0%{transform:rotate(0)} 10%{transform:rotate(14deg)} 20%{transform:rotate(-8deg)} 30%{transform:rotate(14deg)} 40%{transform:rotate(-4deg)} 50%{transform:rotate(10deg)} 60%{transform:rotate(0)} 100%{transform:rotate(0)} }
+    </style>
+</head>
+<body>
+
+    <div class="notification-container dropdown">
+        <a class="nav-link" href="#" id="notificationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Thông báo">
+            <i id="notification-icon" class="fas fa-bell fa-lg"></i>
+            <span id="notification-count" class="badge badge-danger badge-pill" style="display: none;"></span>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationDropdown" id="notification-list">
+            <li class="dropdown-item text-muted small" id="no-notification-message">Không có thông báo mới</li>
+        </ul>
+    </div>
+
+    <div class="container-fluid">
+        <h1>@ViewData["Title"]</h1>
+
+        @if (!string.IsNullOrEmpty(ViewBag.Error))
+        {
+            <div class="alert alert-danger">@ViewBag.Error</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+
+        <div class="filter-bar">
+            <form asp-action="Index" method="get" class="form-inline w-100 d-flex flex-wrap">
+                <div class="form-group mr-3 mb-2">
+                    <label for="userEmail" class="mr-2">Email người dùng:</label>
+                    <input type="text" class="form-control" id="userEmail" name="userEmail" value="@Model.UserEmail" placeholder="Nhập email...">
+                </div>
+                <div class="form-group mr-3 mb-2">
+                    <label for="entityName" class="mr-2">Đối tượng (Entity):</label>
+                    <select class="form-control" id="entityName" name="entityName" asp-for="EntityName" asp-items="@Model.EntityOptions">
+                        <option value="">-- Tất cả --</option>
+                    </select>
+                </div>
+                <div class="ml-auto mb-2">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Lọc</button>
+                    <a asp-action="Index" class="btn btn-secondary ml-2">Xóa bộ lọc</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Email Người dùng</th>
+                            <th>Hành động</th>
+                            <th>Đối tượng</th>
+                            <th>Khóa (Key)</th>
+                            <th class="action-cell">Chi tiết</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.LogResponse != null && Model.LogResponse.Items.Any())
+                        {
+                            @foreach (var log in Model.LogResponse.Items)
+                            {
+                                <tr>
+                                    <td>@log.Timestamp.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                    <td>@log.UserEmail</td>
+                                    <td>@log.Action</td>
+                                    <td>@log.EntityName</td>
+                                    <td>@log.KeyValues</td>
+                                    <td class="action-cell">
+                                        <button class="btn btn-sm btn-info"
+                                                onclick="showJsonModal('@HttpUtility.JavaScriptStringEncode(log.OldValues)', '@HttpUtility.JavaScriptStringEncode(log.NewValues)')">
+                                            <i class="fas fa-eye"></i> Xem
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="6" class="text-center p-4">Không tìm thấy lịch sử nào khớp.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (Model.LogResponse != null && Model.LogResponse.TotalPages > 1)
+        {
+            <nav id="paginationControls" class="pagination justify-content-center mt-4">
+                <a asp-action="Index"
+                   asp-route-pageNumber="@(Model.CurrentPage - 1)"
+                   asp-route-userEmail="@Model.UserEmail"
+                   asp-route-entityName="@Model.EntityName"
+                   class="page-link @(Model.LogResponse.HasPreviousPage ? "" : "disabled")"> &laquo; Trước </a>
+                @{
+                    int startPage = Math.Max(1, Model.CurrentPage - 2);
+                    int endPage = Math.Min(Model.LogResponse.TotalPages, Model.CurrentPage + 2);
+
+                    if (startPage > 1) { /* ... */ }
+                    for (int i = startPage; i <= endPage; i++)
+                    {
+                        <a asp-action="Index"
+                           asp-route-pageNumber="@i"
+                           asp-route-userEmail="@Model.UserEmail"
+                           asp-route-entityName="@Model.EntityName"
+                           class="page-link @(i == Model.CurrentPage ? "current-page" : "")"> @i </a>
+                    }
+                    if (endPage < Model.LogResponse.TotalPages) { /* ... */ }
+                }
+                <a asp-action="Index"
+                   asp-route-pageNumber="@(Model.CurrentPage + 1)"
+                   asp-route-userEmail="@Model.UserEmail"
+                   asp-route-entityName="@Model.EntityName"
+                   class="page-link @(Model.LogResponse.HasNextPage ? "" : "disabled")"> Sau &raquo; </a>
+            </nav>
+        }
+
+    </div>
+    <div class="modal fade" id="jsonModal" tabindex="-1" role="dialog" aria-labelledby="jsonModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jsonModalLabel">Chi tiết Thay đổi</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Dữ liệu Cũ (OldValues)</h6>
+                            <pre><code id="oldJsonContent"></code></pre>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Dữ liệu Mới (NewValues)</h6>
+                            <pre><code id="newJsonContent"></code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js" integrity="sha512-VEd+nq25CkR676O+pLBnDW09R7VQX9Mdiij052gVCp5yVH3jGtH70Ho/UUv4mJDsEdTvqRCFZg0NKGiojGnUCw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="~/lib/signalr/signalr.min.js"></script>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Hàm định dạng và hiển thị JSON trong Modal ---
+            window.showJsonModal = (oldJsonStr, newJsonStr) => {
+                const oldContentEl = document.getElementById('oldJsonContent');
+                const newContentEl = document.getElementById('newJsonContent');
+
+                // Hàm để "pretty-print" và highlight JSON
+                const formatJson = (jsonString) => {
+                    if (!jsonString || jsonString === 'null') {
+                        return '<span class="json-null">null</span>';
+                    }
+                    try {
+                        // Parse và stringify lại để format
+                        const obj = JSON.parse(jsonString);
+                        let formatted = JSON.stringify(obj, null, 2);
+
+                        // Thêm màu sắc cơ bản (Regex đơn giản)
+                         formatted = formatted.replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:'); // Keys
+                         formatted = formatted.replace(/: "([^"]*)"/g, ': <span class="json-string">"$1"</span>'); // Strings
+                         formatted = formatted.replace(/: (\d+\.?\d*)/g, ': <span class="json-number">$1</span>'); // Numbers
+                         formatted = formatted.replace(/: null/g, ': <span class="json-null">null</span>'); // Null
+
+                        return formatted;
+                    } catch (e) {
+                        return jsonString; // Trả về text gốc nếu không phải JSON
+                    }
+                };
+
+                oldContentEl.innerHTML = formatJson(oldJsonStr);
+                newContentEl.innerHTML = formatJson(newJsonStr);
+
+                $('#jsonModal').modal('show'); // Dùng jQuery để kích hoạt modal
+            };
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            toastr.options = { "closeButton": true, "progressBar": true, "positionClass": "toast-top-right", "timeOut": "10000", "extendedTimeOut": "2000" };
+
+            const notificationIcon = document.getElementById("notification-icon");
+            const notificationCount = document.getElementById("notification-count");
+            const notificationList = document.getElementById("notification-list");
+
+            const MAX_NOTIFICATIONS = 10;
+            let recentNotifications = JSON.parse(sessionStorage.getItem('recentNotifications') || '[]');
+            let unreadCount = parseInt(sessionStorage.getItem('unreadNotificationCount') || '0');
+
+            function addRecentNotification(notification) {
+                recentNotifications.unshift(notification);
+                if (recentNotifications.length > MAX_NOTIFICATIONS) recentNotifications.pop();
+                sessionStorage.setItem('recentNotifications', JSON.stringify(recentNotifications));
+                if (!$('#notificationDropdown').parent().hasClass('show')) {
+                     unreadCount++;
+                     sessionStorage.setItem('unreadNotificationCount', unreadCount.toString());
+                }
+                updateNotificationUI();
+            }
+
+            function updateNotificationUI() {
+                if (!notificationList || !notificationIcon || !notificationCount) return;
+                notificationList.innerHTML = '';
+                if (recentNotifications.length === 0) {
+                    notificationList.innerHTML = '<li class="dropdown-item text-muted small" id="no-notification-message">Không có thông báo mới</li>';
+                    notificationIcon.classList.remove('has-new');
+                    notificationCount.style.display = 'none';
+                    return;
+                }
+                recentNotifications.forEach(noti => {
+                    const listItem = document.createElement('li');
+                    const linkTarget = noti.articleUrl ? 'target="_blank"' : '';
+                    const href = noti.articleUrl || '#';
+                    const link = document.createElement('a');
+                    link.className = 'dropdown-item small';
+                    link.href = href;
+                    if(noti.articleUrl) link.target = "_blank";
+                    const messageSpan = document.createElement('span');
+                    messageSpan.textContent = noti.message;
+                    messageSpan.style.fontWeight = "bold";
+                    const timeSpan = document.createElement('small');
+                    timeSpan.className = 'd-block text-muted';
+                    timeSpan.textContent = noti.timestamp ? new Date(noti.timestamp).toLocaleString("vi-VN") : new Date().toLocaleString("vi-VN");
+                    link.appendChild(messageSpan);
+                    link.appendChild(timeSpan);
+                    listItem.appendChild(link);
+                    notificationList.appendChild(listItem);
+                });
+                if (unreadCount > 0) {
+                     notificationIcon.classList.add('has-new');
+                     notificationCount.textContent = unreadCount > 9 ? '9+' : unreadCount.toString();
+                     notificationCount.style.display = 'inline-block';
+                } else {
+                     notificationIcon.classList.remove('has-new');
+                     notificationCount.style.display = 'none';
+                }
+            }
+
+            $('#notificationDropdown').on('show.bs.dropdown', function () {
+                unreadCount = 0;
+                sessionStorage.setItem('unreadNotificationCount', '0');
+                updateNotificationUI();
+            });
+
+            const signalRHubUrl = "@(apiBaseUrl)/hubs/notifications";
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl(signalRHubUrl)
+                .configureLogging(signalR.LogLevel.Warning)
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on("ReceiveNotification", (data) => {
+                console.log("📢 Notification received:", data);
+                if (!data || !data.message) return;
+                const notification = { message: data.message, articleUrl: data.articleUrl, timestamp: new Date().toISOString() };
+                let toastMessage = notification.message;
+                if (notification.articleUrl) {
+                    toastMessage = `<a href="${notification.articleUrl}" target="_blank" style="color: white; text-decoration: underline;">${notification.message}</a>`;
+                }
+                toastr.success(toastMessage, 'Thông báo mới!');
+                addRecentNotification(notification);
+            });
+
+            async function startSignalRConnection() {
+                try {
+                    await connection.start();
+                    console.log("✅ SignalR connected to", signalRHubUrl);
+                } catch (err) {
+                    console.error("❌ SignalR connection error:", err);
+                    setTimeout(startSignalRConnection, 5000);
+                }
+            }
+            connection.onclose(async () => { console.log("SignalR Connection Closed. Reconnecting..."); });
+
+            startSignalRConnection();
+            updateNotificationUI();
+
+        });
+    </script>
+</body>
+</html>

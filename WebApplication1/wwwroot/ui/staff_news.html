@@ -1,0 +1,134 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard | Article Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            max-width: 90%;
+        }
+
+        .status-active {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-inactive {
+            color: red;
+            font-weight: bold;
+        }
+
+        .tag-badge {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+        <h4>Staff Dashboard</h4>
+        <div>
+            <button class="btn btn-outline-light ms-3" id="logoutBtn">Đăng xuất</button>
+        </div>
+    </header>
+
+    <main class="container my-5">
+        <h2 class="mb-4">Quản lý Bài báo Tin tức</h2>
+
+        <div class="d-flex justify-content-between mb-3">
+            <button class="btn btn-primary" id="addArticleBtn">Thêm Bài báo mới</button>
+            <div class="d-flex">
+                <input type="text" class="form-control me-2" id="searchInput" placeholder="Tìm kiếm theo tiêu đề">
+                <button class="btn btn-secondary" id="searchBtn">Tìm kiếm</button>
+            </div>
+        </div>
+
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tiêu đề</th>
+                    <th>Ngày tạo</th>
+                    <th>Tác giả</th>
+                    <th>Danh mục</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="articleTableBody">
+            </tbody>
+        </table>
+
+        <div class="modal fade" id="articleModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle">Thêm Bài báo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="articleForm">
+                            <input type="hidden" id="articleId">
+                            <div class="mb-3">
+                                <label for="articleTitle" class="form-label">Tiêu đề</label>
+                                <input type="text" class="form-control" id="articleTitle" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleHeadline" class="form-label">Tóm tắt</label>
+                                <input type="text" class="form-control" id="articleHeadline">
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleContent" class="form-label">Nội dung</label>
+                                <textarea class="form-control" id="articleContent" rows="5" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleSource" class="form-label">Nguồn</label>
+                                <input type="text" class="form-control" id="articleSource">
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleCategory" class="form-label">Danh mục</label>
+                                <select class="form-select" id="articleCategory" required>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleStatus" class="form-label">Trạng thái</label>
+                                <select class="form-select" id="articleStatus" required>
+                                    <option value="true">Active</option>
+                                    <option value="false">Inactive</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Thẻ đã chọn</label>
+                                <div id="selectedTagsContainer" class="d-flex flex-wrap border rounded p-2">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Thẻ (Tags)</label>
+                                <div id="tagCheckboxesContainer" class="d-flex flex-wrap border rounded p-2">
+                                </div>
+                            </div>
+
+                            <input type="hidden" id="articleTagIds">
+
+                            <input type="hidden" id="articleTagIds">
+
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-dark text-white text-center py-3 mt-5">
+        <p>&copy; 2025 FUNewsManagementSystem. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/staff_articles.js"></script>
+</body>
+</html>

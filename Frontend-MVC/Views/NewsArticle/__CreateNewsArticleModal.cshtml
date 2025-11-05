@@ -1,0 +1,99 @@
+﻿@* Partial View cho Form tạo bài viết trong Modal *@
+@using Frontend_MVC.ViewModels;
+@model NewsArticleUpdateRequest
+@* Sử dụng ViewModel bạn đã yêu cầu *@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<form asp-action="Create" method="post" enctype="multipart/form-data" id="createNewsArticleForm">
+
+    @Html.AntiForgeryToken()
+
+    @* Khu vực hiển thị lỗi chung từ AJAX *@
+    <div id="createModalErrorSummary" class="alert alert-danger" style="display: none;"></div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label asp-for="NewsTitle" class="form-label"></label>
+                <input asp-for="NewsTitle" class="form-control" />
+                <span asp-validation-for="NewsTitle" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Headline" class="form-label"></label>
+                <input asp-for="Headline" class="form-control" />
+                <span asp-validation-for="Headline" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="mb-3">
+                <label asp-for="CategoryId" class="form-label"></label>
+                <select asp-for="CategoryId" class="form-select"
+                        asp-items="@(new SelectList(Model.Categories ?? new(), "CategoryId", "CategoryName"))">
+                    <option value="">-- Chọn danh mục --</option>
+                </select>
+                <span asp-validation-for="CategoryId" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="NewsSource" class="form-label"></label>
+                <input asp-for="NewsSource" class="form-control" />
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="NewsContent" class="form-label"></label>
+        <textarea asp-for="NewsContent" class="form-control" rows="5" id="newsContentTextAreaModal"></textarea>
+        <span asp-validation-for="NewsContent" class="text-danger"></span>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label asp-for="TagIds" class="form-label"></label>
+                <select asp-for="TagIds" class="form-select multi-select-box" multiple
+                        asp-items="@(new SelectList(Model.Tags ?? new(), "TagId", "TagName"))">
+                </select>
+                <span asp-validation-for="TagIds" class="text-danger"></span>
+            </div>
+
+            @* === NÚT VÀ KHU VỰC GỢI Ý TAG === *@
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-info btn-sm" id="suggestTagsBtnModal">
+                    <i class="bi bi-lightbulb"></i> Gợi ý Tags (AI)
+                </button>
+                <div class="spinner-border spinner-border-sm text-info ms-2" role="status" id="suggestTagsLoadingModal" style="display: none;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="suggestedTagsContainerModal" class="mt-2 suggest-container-style">
+                    @* Thêm class style *@
+                    <small class="text-muted">Nhập nội dung và nhấn nút...</small>
+                </div>
+                <div id="suggestTagsErrorModal" class="text-danger mt-1 error-style"></div> @* Thêm class style *@
+            </div>
+            @* === KẾT THÚC === *@
+
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label asp-for="ImageFile" class="form-label"></label>
+                <input asp-for="ImageFile" type="file" class="form-control-file" accept="image/png, image/jpeg" />
+                <span asp-validation-for="ImageFile" class="text-danger"></span>
+            </div>
+            <div class="mb-3 form-check">
+                <input asp-for="NewsStatus" type="checkbox" class="form-check-input" checked="@(Model.NewsStatus ?? true)" />
+                <label asp-for="NewsStatus" class="form-check-label"></label>
+            </div>
+        </div>
+    </div>
+</form>
+
+@* CSS riêng cho partial view này *@
+<style>
+    .multi-select-box { height: 120px; }
+    .form-control-file { display: block; width: 100%; padding: 0.375rem 0.75rem; font-size: 1rem; font-weight: 400; line-height: 1.5; color: #212529; background-color: #fff; background-clip: padding-box; border: 1px solid #ced4da; border-radius: 0.375rem; }
+    .form-check-input { margin-left: 0.25rem; }
+    .form-check-label { margin-left: 1.5rem; }
+     .suggest-container-style { margin-top: 0.75rem; padding: 0.75rem; background-color: #e9ecef; border-radius: 0.375rem; min-height: 40px; }
+    .suggested-tag { display: inline-block; padding: 0.3em 0.6em; font-size: .85em; font-weight: 700; line-height: 1; color: #fff; background-color: #6c757d; border-radius: 0.375rem; margin-right: 0.4rem; margin-bottom: 0.4rem; cursor: default; }
+    .error-style { font-size: 0.9em; }
+</style>

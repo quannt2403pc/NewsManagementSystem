@@ -1,0 +1,423 @@
+﻿@model Frontend_MVC.ViewModels.CategoryListViewModel
+@using Frontend_MVC.ViewModels;
+@{
+    ViewData["Title"] = "Quản lý Danh mục";
+    var parentCategories = ViewBag.ParentCategories as List<CategoryWithArticleCount> ?? new List<CategoryWithArticleCount>();
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" />
+
+    <style>
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 8px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+
+        .status-active {
+            color: #155724;
+            font-weight: bold;
+            background-color: #d4edda;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+        }
+
+        .status-inactive {
+            color: #721c24;
+            font-weight: bold;
+            background-color: #f8d7da;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+        }
+
+        .action-buttons .btn {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body class="p-4 bg-light">
+    <div class="container">
+        <h1>@ViewData["Title"]</h1>
+
+        <div class="toolbar">
+            <button class="btn btn-primary" id="openCreateBtn">➕ Thêm Danh mục mới</button>
+
+            <form asp-action="Index" method="get" class="search-form">
+                <input type="text" name="searchString" value="@Model.SearchString" class="form-control" placeholder="Tìm kiếm tên danh mục..." />
+                <button type="submit" class="btn btn-success">Tìm</button>
+                @if (!string.IsNullOrEmpty(Model.SearchString))
+                {
+                    <a asp-action="Index" class="btn btn-secondary">Xóa tìm kiếm</a>
+                }
+            </form>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.Error))
+        {
+            <div class="alert alert-danger">@ViewBag.Error</div>
+        }
+
+        <div class="table-container">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Tên Danh mục</th>
+                        <th>Mô tả</th>
+                        <th>Danh mục cha</th>
+                        <th class="text-center">Số bài viết</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th style="width: 200px; text-align: right;">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Categories.Any())
+                    {
+                        foreach (var category in Model.Categories)
+                        {
+                            <tr>
+                                <td>@category.CategoryName</td>
+                                <td>@category.CategoryDescription</td>
+                                <td>@(category.ParentCategoryName ?? "---")</td>
+                                <td class="text-center">@category.ArticleCount</td>
+                                <td class="text-center">
+                                    @if (category.IsActive)
+                                    {
+                                        <span class="status-active">Hoạt động</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-inactive">Không hoạt động</span>
+                                    }
+                                </td>
+                                <td class="action-buttons text-right">
+                                    <button class="btn btn-sm @(category.IsActive ? "btn-warning" : "btn-info")" onclick="toggleActive(@category.CategoryID)">
+                                        @(category.IsActive ? "Ẩn" : "Hiện")
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="openEditModal(@category.CategoryID)">Sửa</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteCategory(@category.CategoryID)">Xóa</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center">Không tìm thấy danh mục nào.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Modal thêm/sửa danh mục -->
+        <div class="modal fade" id="categoryModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="categoryModalLabel">Thêm Danh mục mới</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span>&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="modalAlertPlaceholder"></div>
+
+                        <form id="categoryForm">
+                            <input type="hidden" id="CategoryId" value="0" />
+
+                            <div class="form-group">
+                                <label for="CategoryName">Tên Danh mục</label>
+                                <input type="text" class="form-control" id="CategoryName" required>
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="CategoryDescription">Mô tả</label>
+                                <textarea class="form-control" id="CategoryDescription" rows="3" required></textarea>
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ParentCategoryId">Danh mục cha (Tùy chọn)</label>
+                                <select class="form-control" id="ParentCategoryId">
+                                    <option value="">-- Không có --</option>
+                                    @foreach (var parent in parentCategories)
+                                    {
+                                        <option value="@parent.CategoryID">@parent.CategoryName</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="IsActive">Trạng thái</label>
+                                <select class="form-control" id="IsActive">
+                                    <option value="true">Hoạt động</option>
+                                    <option value="false">Không hoạt động</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-dismiss="modal">Hủy</button>
+                        <button class="btn btn-primary" id="saveCategoryBtn">Lưu Danh mục</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script: jQuery, Bootstrap -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Khi DOM đã sẵn sàng
+        document.addEventListener("DOMContentLoaded", () => {
+
+            const categoryModal = $('#categoryModal');
+            const modalTitle = $('#categoryModalLabel');
+            const saveButton = document.getElementById('saveCategoryBtn');
+            const alertPlaceholder = document.getElementById('modalAlertPlaceholder');
+            const categoryForm = document.getElementById('categoryForm');
+            const categoryIdInput = document.getElementById('CategoryId');
+            const categoryNameInput = document.getElementById('CategoryName');
+            const categoryDescInput = document.getElementById('CategoryDescription');
+            const parentCategorySelect = document.getElementById('ParentCategoryId');
+            const isActiveSelect = document.getElementById('IsActive');
+
+            function showModalAlert(message, type = 'danger') {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
+                            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                                ${message}
+                                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                            </div>`;
+                alertPlaceholder.innerHTML = '';
+                alertPlaceholder.append(wrapper);
+            }
+
+            function clearModalState() {
+                alertPlaceholder.innerHTML = '';
+                $(categoryForm).find('.is-invalid').removeClass('is-invalid');
+                $(categoryForm).find('.invalid-feedback').text('');
+            }
+
+            // === MỞ MODAL TẠO MỚI ===
+            function openCreateModal() {
+                clearModalState();
+                categoryForm.reset();
+                categoryIdInput.value = '0';
+                modalTitle.text('Thêm Danh mục mới');
+                saveButton.textContent = 'Lưu Danh mục';
+                $(parentCategorySelect).find('option').prop('disabled', false);
+                categoryModal.modal('show');
+            }
+
+            // Gán sự kiện nút mở modal
+            document.getElementById("openCreateBtn").addEventListener("click", openCreateModal);
+
+            // === LƯU DANH MỤC ===
+      
+            async function openEditModal(id) {
+                clearModalState();
+                categoryForm.reset();
+                modalTitle.text('Cập nhật Danh mục');
+                saveButton.textContent = 'Cập nhật';
+                categoryIdInput.value = id; // Set the ID
+
+                // Disable the option corresponding to the category being edited
+                $(parentCategorySelect).find('option').prop('disabled', false); // Enable all first
+                $(parentCategorySelect).find(`option[value="${id}"]`).prop('disabled', true);
+
+                // Fetch category data from Frontend Controller
+                const url = `@Url.Action("GetCategory", "Category")?id=${id}`;
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const categoryData = await response.json();
+
+                        // Populate the form
+                        categoryNameInput.value = categoryData.categoryName;
+                        categoryDescInput.value = categoryData.categoryDescription;
+                        parentCategorySelect.value = categoryData.parentCategoryId || ""; // Set to "" if null
+                        isActiveSelect.value = categoryData.isActive.toString(); // "true" or "false"
+
+                        categoryModal.modal('show'); // Show modal AFTER data is loaded
+                    } else {
+                        const error = await response.json();
+                        alert(`Lỗi tải dữ liệu: ${error.message || response.statusText}`);
+                    }
+                } catch (error) {
+                    alert('Lỗi kết nối khi tải dữ liệu: ' + error.message);
+                }
+            }
+
+            // --- MODIFY FUNCTION: Save Button Click Handler ---
+            saveButton.addEventListener('click', async function () {
+                clearModalState();
+                saveButton.disabled = true;
+
+                // Determine if it's Create or Update based on hidden ID
+                const categoryId = parseInt(categoryIdInput.value);
+                const isUpdate = categoryId > 0;
+
+                saveButton.textContent = isUpdate ? 'Đang cập nhật...' : 'Đang lưu...';
+
+                // Set the correct URL for the AJAX call
+                const url = isUpdate
+                    ? '@Url.Action("Update", "Category")'
+                    : '@Url.Action("Create", "Category")';
+
+                // Get form data (same for create and update)
+                const formData = {
+                    categoryId: categoryId, // Include ID for update
+                    categoryName: categoryNameInput.value.trim(),
+                    categoryDescription: categoryDescInput.value.trim(),
+                    parentCategoryId: parentCategorySelect.value ? parseInt(parentCategorySelect.value) : null,
+                    isActive: isActiveSelect.value === 'true'
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST', // Still POST to Frontend Controller for both
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        categoryModal.modal('hide');
+                        location.reload();
+                    } else {
+                        // Handle errors (same logic as before)
+                        const errorData = await response.json();
+                        if (response.status === 400 && errorData) {
+                            if (errorData.message) {
+                                showModalAlert(errorData.message);
+                            } else {
+                                let errorHtml = '<ul>';
+                                for (const key in errorData) {
+                                    if (errorData.hasOwnProperty(key)) {
+                                        const input = categoryForm.elements[key];
+                                        if (input) {
+                                            $(input).addClass('is-invalid');
+                                            $(input).siblings('.invalid-feedback').text(errorData[key].join(' '));
+                                        }
+                                        errorData[key].forEach(err => { errorHtml += `<li>${err}</li>`; });
+                                    }
+                                }
+                                errorHtml += '</ul>';
+                                showModalAlert('Vui lòng kiểm tra lại thông tin:' + errorHtml);
+                            }
+                        } else {
+                            let errorMsg = `Đã xảy ra lỗi (${response.status})`;
+                            try {
+                                const errJson = await response.json(); // Try parsing JSON first
+                                errorMsg += `: ${errJson.message || response.statusText}`;
+                            } catch {
+                                errorMsg += `: ${response.statusText}`; // Fallback to status text
+                            }
+                            showModalAlert(errorMsg);
+                        }
+                    }
+
+                } catch (error) {
+                    showModalAlert('Lỗi kết nối đến máy chủ: ' + error.message);
+                } finally {
+                    saveButton.disabled = false;
+                    saveButton.textContent = isUpdate ? 'Cập nhật' : 'Lưu Danh mục';
+                }
+            });
+
+            async function deleteCategory(id) {
+                // 1. Show Confirmation Dialog
+                if (!confirm(`Bạn có chắc chắn muốn xóa danh mục ID ${id} không? Hành động này không thể hoàn tác.`)) {
+                    return; // Stop if user clicks Cancel
+                }
+
+                // 2. Prepare request data and URL
+                const url = '@Url.Action("Delete", "Category")';
+                // Send ID using FormData for POST request
+                const formData = new FormData();
+                formData.append('id', id);
+
+                // You might want to show a loading indicator here
+
+                try {
+                    // 3. Send AJAX request to Frontend Controller
+                    const response = await fetch(url, {
+                        method: 'POST', // POST to the Frontend Delete action
+                        body: formData
+                        // No 'Content-Type' header needed for FormData
+                    });
+
+                    if (response.ok) {
+                        // Success!
+                        const result = await response.json(); // Expect { success: true }
+                        if (result.success) {
+                            alert('Xóa danh mục thành công!');
+                            location.reload(); // Reload the page to update the table
+                        } else {
+                            // Should ideally not happen if response.ok is true, but good practice
+                            alert('Xóa thất bại (unexpected success response): ' + (result.message || 'Unknown error'));
+                        }
+                    } else {
+                        // Handle errors from Frontend Controller (400, 401, 404, 500)
+                        let errorMessage = `Lỗi ${response.status}: `;
+                        try {
+                            const errorData = await response.json(); // Try parsing JSON
+                            errorMessage += errorData.message || response.statusText;
+                        } catch {
+                            errorMessage += response.statusText; // Fallback to status text
+                        }
+                        alert(errorMessage);
+                    }
+                } catch (error) {
+                    // Handle network errors
+                    alert('Lỗi kết nối khi xóa: ' + error.message);
+                } finally {
+                    // Hide loading indicator here
+                }
+            }
+
+
+
+
+            // Placeholder các hàm còn lại
+            window.toggleActive = (id) => console.log("Toggle active ID:", id);
+            window.openEditModal = openEditModal
+            window.deleteCategory = deleteCategory;        });
+    </script>
+</body>
+</html>

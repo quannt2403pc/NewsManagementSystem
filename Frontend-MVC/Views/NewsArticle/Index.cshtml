@@ -1,0 +1,998 @@
+﻿@model Frontend_MVC.ViewModels.NewsListViewModel
+@using Frontend_MVC.ViewModels
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Quản lý Tin Tức";
+    var categories = ViewBag.CategoriesForModal as List<CategoryViewModel> ?? new List<CategoryViewModel>();
+    var tags = ViewBag.TagsForModal as List<TagViewModel> ?? new List<TagViewModel>();
+    bool isOffline = ViewBag.IsOffline ?? false;
+    // Lấy Base URL (bỏ dấu / ở cuối nếu có)
+    var apiBaseUrl = Configuration["ApiBaseUrl"]?.TrimEnd('/');
+    // Lấy URL Frontend (ví dụ: https://localhost:7022)
+    var frontendBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
+}
+@{
+    Func<string, string> getSortClass = (column) => Model.SortBy == column ? (Model.SortDirection == "asc" ? "sorted-asc" : "sorted-desc") : "";
+    Func<string, string> getSortDirection = (column) => Model.SortBy == column && Model.SortDirection == "asc" ? "desc" : "asc";
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" integrity="sha512-vKMx8UnXk60zUwyUnUPM3HbQo8QfmNx7+ltw8Pm5zLusl1XIfwcxo8DbWCqMGKaWeNxWA8yrx5v3SaVpMvR3CA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <style>
+        /* --- General Styling --- */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        /* --- Toolbar --- */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        #openModalBtn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+            #openModalBtn:hover:not(:disabled) {
+                background-color: #0056b3;
+            }
+
+        .search-form {
+            display: flex;
+            gap: 8px;
+        }
+
+            .search-form input[type="text"] {
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+
+            .search-form button {
+                padding: 10px 15px;
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+
+        /* --- Offline Banner --- */
+        .offline-banner {
+            background-color: #ffc107;
+            color: #333;
+            padding: 10px 15px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 1px solid #e0a800;
+            position: sticky;
+            top: 0;
+            z-index: 1050;
+            margin-bottom: 20px;
+        }
+
+        /* --- Disabled Elements --- */
+        .btn:disabled, button:disabled {
+            cursor: not-allowed;
+            opacity: 0.65;
+        }
+
+        .pagination a.disabled {
+            pointer-events: none;
+            color: #6c757d;
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+        }
+
+        /* --- Table Styling --- */
+        .table-container {
+            overflow-x: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        #newsTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            #newsTable th, #newsTable td {
+                border: 1px solid #ddd;
+                padding: 12px;
+                text-align: left;
+                vertical-align: middle;
+            }
+
+            #newsTable th {
+                background-color: #f8f8f8;
+                font-weight: bold;
+            }
+
+                #newsTable th a {
+                    text-decoration: none;
+                    color: #0056b3;
+                    font-weight: bold;
+                }
+
+                    #newsTable th a.sorted-asc::after {
+                        content: " ▲";
+                    }
+
+                    #newsTable th a.sorted-desc::after {
+                        content: " ▼";
+                    }
+
+            #newsTable tbody tr:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+
+            #newsTable tbody tr:hover {
+                background-color: #f1f1f1;
+            }
+
+        .status-active {
+            color: #155724;
+            background-color: #d4edda;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .status-inactive {
+            color: #721c24;
+            background-color: #f8d7da;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .status-unknown {
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .action-buttons {
+            white-space: nowrap;
+            text-align: right;
+        }
+
+            .action-buttons .btn {
+                margin-left: 5px;
+            }
+
+        /* --- Pagination --- */
+        .pagination {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+
+            .pagination a, .pagination span {
+                display: inline-block;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                background-color: #fff;
+                color: #007bff;
+                text-decoration: none;
+                border-radius: 4px;
+            }
+
+                .pagination a:hover:not(.disabled) {
+                    background-color: #e9ecef;
+                }
+
+            .pagination .current-page {
+                background-color: #007bff;
+                color: white;
+                border-color: #007bff;
+                font-weight: bold;
+            }
+
+            .pagination .disabled {
+                color: #6c757d;
+                background-color: #e9ecef;
+            }
+
+        /* --- Modal Styling --- */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1060; /* Higher than notification */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 800px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .close-btn {
+            color: #aaa;
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #createNewsForm {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-group select[multiple] {
+            height: 150px;
+        }
+
+        .tag-helpers {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        #suggestTagBtn {
+            padding: 10px;
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        #tagSuggestions {
+            display: none;
+            margin-top: 5px;
+            padding: 10px;
+            background-color: #eef;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        #modalError, #modalSuccess {
+            display: none;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #modalError {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        #modalSuccess {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        #submitFormBtn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+            #submitFormBtn:hover:not(:disabled) {
+                background-color: #0056b3;
+            }
+
+        /* --- Notification Bell --- */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            z-index: 1070; /* Above modal backdrop */
+        }
+
+            .notification-container .dropdown-menu {
+                min-width: 300px;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+
+            .notification-container .dropdown-item {
+                white-space: normal;
+                font-size: 0.9rem;
+                border-bottom: 1px solid #eee;
+            }
+
+                .notification-container .dropdown-item:last-child {
+                    border-bottom: none;
+                }
+
+                .notification-container .dropdown-item a {
+                    text-decoration: none !important;
+                    color: #333 !important;
+                    display: block;
+                    padding: .5rem 1rem;
+                }
+
+                    .notification-container .dropdown-item a:hover {
+                        background-color: #f8f9fa;
+                    }
+
+            .notification-container .text-muted {
+                padding: .5rem 1rem;
+            }
+
+        #notification-icon.has-new {
+            color: #dc3545;
+            animation: ring 1.5s ease-in-out infinite;
+        }
+
+        #notification-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.7em;
+        }
+
+        @@keyframes ring {
+            0% {
+                transform: rotate(0)
+            }
+
+            10% {
+                transform: rotate(14deg)
+            }
+
+            20% {
+                transform: rotate(-8deg)
+            }
+
+            30% {
+                transform: rotate(14deg)
+            }
+
+            40% {
+                transform: rotate(-4deg)
+            }
+
+            50% {
+                transform: rotate(10deg)
+            }
+
+            60% {
+                transform: rotate(0)
+            }
+
+            100% {
+                transform: rotate(0)
+            }
+        }
+
+        /* Responsive */
+        @@media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-form {
+                width: 100%;
+            }
+
+                .search-form input[type="text"] {
+                    flex-grow: 1;
+                }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .table thead {
+                display: none;
+            }
+
+            .table, .table tbody, .table tr, .table td {
+                display: block;
+                width: 100%;
+            }
+
+                .table tr {
+                    margin-bottom: 15px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                }
+
+                .table td {
+                    text-align: right;
+                    padding-left: 50%;
+                    position: relative;
+                    border: none;
+                    border-bottom: 1px solid #eee;
+                }
+
+                    .table td:last-child {
+                        border-bottom: none;
+                    }
+
+                    .table td::before {
+                        content: attr(data-label);
+                        position: absolute;
+                        left: 10px;
+                        width: calc(50% - 20px);
+                        padding-right: 10px;
+                        white-space: nowrap;
+                        text-align: left;
+                        font-weight: bold;
+                    }
+
+            .action-buttons {
+                text-align: center;
+            }
+
+            .pagination {
+                flex-wrap: wrap;
+            }
+
+            .notification-container {
+                top: 10px;
+                right: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="notification-container dropdown">
+        <a class="nav-link" href="#" id="notificationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Thông báo">
+            <i id="notification-icon" class="fas fa-bell fa-lg"></i>
+            <span id="notification-count" class="badge badge-danger badge-pill" style="display: none;"></span>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationDropdown" id="notification-list">
+            <li class="dropdown-item text-muted small" id="no-notification-message">Không có thông báo mới</li>
+        </ul>
+    </div>
+    <div class="container-fluid">
+
+        @if (isOffline)
+        {
+            <div class="offline-banner">
+                <i class="fas fa-wifi-slash"></i> Chế độ Ngoại tuyến: Dữ liệu có thể đã cũ và các thao tác chỉnh sửa bị vô hiệu hóa.
+            </div>
+        }
+
+        <h1>@ViewData["Title"]</h1>
+
+        <div class="toolbar">
+            <button id="openModalBtn" class="btn btn-primary" @(isOffline ? "disabled" : "")>➕ Thêm tin mới</button>
+            <form asp-action="Index" method="get" class="search-form">
+                <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                <input type="hidden" name="sortDirection" value="@Model.SortDirection" />
+                <input type="text" name="searchString" value="@Model.SearchString" class="form-control" placeholder="Tìm kiếm tiêu đề..." />
+                <button type="submit" class="btn btn-success">Tìm kiếm</button>
+                @if (!string.IsNullOrEmpty(Model.SearchString))
+                {
+                    <a asp-action="Index" class="btn btn-secondary ml-2">Xóa tìm kiếm</a>
+                }
+            </form>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.Error))
+        {
+            <div class="alert alert-danger">@ViewBag.Error</div>
+        }
+        @if (!string.IsNullOrEmpty(ViewBag.DropdownError))
+        {
+            <div class="alert alert-warning">@ViewBag.DropdownError</div>
+        }
+
+        <div class="table-container">
+            <table id="newsTable" class="table table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th><a asp-action="Index" asp-route-sortBy="NewsTitle" asp-route-sortDirection="@getSortDirection("NewsTitle")" asp-route-searchString="@Model.SearchString" asp-route-pageNumber="@Model.CurrentPage" class="@getSortClass("NewsTitle")">Tiêu đề</a></th>
+                        <th><a asp-action="Index" asp-route-sortBy="CategoryName" asp-route-sortDirection="@getSortDirection("CategoryName")" asp-route-searchString="@Model.SearchString" asp-route-pageNumber="@Model.CurrentPage" class="@getSortClass("CategoryName")">Danh mục</a></th>
+                        <th><a asp-action="Index" asp-route-sortBy="CreatedDate" asp-route-sortDirection="@getSortDirection("CreatedDate")" asp-route-searchString="@Model.SearchString" asp-route-pageNumber="@Model.CurrentPage" class="@getSortClass("CreatedDate")">Ngày tạo</a></th>
+                        <th class="text-center">Trạng thái</th>
+                        <th style="width: 150px;" class="text-right">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="newsTableBody">
+                    @if (Model.NewsResponse != null && Model.NewsResponse.Items.Any())
+                    {
+                        @foreach (var item in Model.NewsResponse.Items)
+                        {
+                            <tr>
+                                <td data-label="Tiêu đề"><a href="@Url.Action("Detail", "NewsArticle", new { id = item.NewsArticleID })">   @item.NewsTitle   </a></td>
+                                <td data-label="Danh mục">@item.CategoryName</td>
+                                <td data-label="Ngày tạo">@(item.CreatedDate?.ToString("dd/MM/yyyy HH:mm") ?? "N/A")</td>
+                                <td data-label="Trạng thái" class="text-center">
+                                    @if (item.NewsStatus.HasValue)
+                                    { @if (item.NewsStatus.Value)
+                                        {
+                                            <span class="status-active">Hoạt động</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="status-inactive">Ẩn</span>
+                                        }                  }
+                                    else
+                                    {
+                                        <span class="status-unknown">N/A</span>
+                                    }
+                                </td>
+                                <td data-label="Hành động" class="action-buttons text-right">
+                                    <button class="btn btn-sm btn-secondary edit-btn" onclick="openEditModal(@item.NewsArticleID)" data-id="@item.NewsArticleID" @(isOffline ? "disabled" : "")>Sửa</button>
+                                    <button class="btn btn-sm btn-danger delete-btn" onclick="deleteArticle(@item.NewsArticleID)" data-id="@item.NewsArticleID" @(isOffline ? "disabled" : "")>Xóa</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="6" class="text-center" style="padding: 20px;">Không tìm thấy bài viết nào.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.NewsResponse != null && Model.NewsResponse.TotalPages > 1)
+        {
+            <nav id="paginationControls" class="pagination">
+                <a asp-action="Index" asp-route-pageNumber="@(Model.CurrentPage - 1)" asp-route-searchString="@Model.SearchString" asp-route-sortBy="@Model.SortBy" asp-route-sortDirection="@Model.SortDirection" class="page-link @(Model.CurrentPage > 1 && !isOffline ? "" : "disabled")"> &laquo; Trước </a>
+                @{
+                    int startPage = Math.Max(1, Model.CurrentPage - 2);
+                    int endPage = Math.Min(Model.NewsResponse.TotalPages, Model.CurrentPage + 2);
+
+                    if (startPage > 1)
+                    {
+                        <a asp-action="Index" asp-route-pageNumber="1" asp-route-searchString="@Model.SearchString" asp-route-sortBy="@Model.SortBy" asp-route-sortDirection="@Model.SortDirection" class="page-link @(isOffline ? "disabled" : "")">1</a>
+                        if (startPage > 2)
+                        {
+                            <span class="page-link disabled">...</span>
+                        }
+                    }
+                    for (int i = startPage; i <= endPage; i++)
+                    {
+                        <a asp-action="Index" asp-route-pageNumber="@i" asp-route-searchString="@Model.SearchString" asp-route-sortBy="@Model.SortBy" asp-route-sortDirection="@Model.SortDirection" class="page-link @(i == Model.CurrentPage ? "current-page" : "") @(isOffline ? "disabled" : "")"> @i </a>
+                    }
+                    if (endPage < Model.NewsResponse.TotalPages)
+                    {
+                        if (endPage < Model.NewsResponse.TotalPages - 1)
+                        {
+                            <span class="page-link disabled">...</span>
+                        }
+                        <a asp-action="Index" asp-route-pageNumber="@Model.NewsResponse.TotalPages" asp-route-searchString="@Model.SearchString" asp-route-sortBy="@Model.SortBy" asp-route-sortDirection="@Model.SortDirection" class="page-link @(isOffline ? "disabled" : "")">@Model.NewsResponse.TotalPages</a>
+                    }
+                }
+                <a asp-action="Index" asp-route-pageNumber="@(Model.CurrentPage + 1)" asp-route-searchString="@Model.SearchString" asp-route-sortBy="@Model.SortBy" asp-route-sortDirection="@Model.SortDirection" class="page-link @(Model.CurrentPage < Model.NewsResponse.TotalPages && !isOffline ? "" : "disabled")"> Sau &raquo; </a>
+                <span id="currentPageInfo" data-page="@Model.CurrentPage" style="display:none;"></span>
+            </nav>
+        }
+
+        <div id="addNewsModal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2 id="modalTitle">Thêm Tin Tức Mới</h2>
+                <div id="modalError"></div>
+                <div id="modalSuccess"></div>
+                <form id="createNewsForm" asp-action="Create" asp-controller="NewsArticle" method="post" enctype="multipart/form-data">
+                    <input type="hidden" id="NewsArticleId" name="NewsArticleId" value="0">
+                    <div class="form-group"><label for="NewsTitle">Tiêu đề:</label><input type="text" id="NewsTitle" name="NewsTitle" required class="form-control"></div>
+                    <div class="form-group"><label for="Headline">Headline:</label><input type="text" id="Headline" name="Headline" class="form-control"></div>
+                    <div class="form-group"><label for="NewsSource">Nguồn:</label><input type="text" id="NewsSource" name="NewsSource" class="form-control"></div>
+                    <div class="form-group"><label for="NewsContent">Nội dung:</label><textarea id="NewsContent" name="NewsContent" class="form-control"></textarea></div>
+                    <div class="form-group"><label for="NewsStatus">Trạng thái:</label><select id="NewsStatus" name="NewsStatus" class="form-control"><option value="true" selected>Hoạt động</option><option value="false">Ẩn</option></select></div>
+                    <div class="form-group"><label for="CategoryId">Danh mục:</label><select id="CategoryId" name="CategoryId" required class="form-control"><option value="">-- Chọn --</option>@foreach (var cat in categories)
+                            {
+                                <option value="@cat.CategoryID">@cat.CategoryName</option>
+                            }</select></div>
+                    <div class="form-group"><label for="TagIds">Tags:</label><select id="TagIds" name="TagIds" multiple class="form-control">@foreach (var tag in tags)
+                            {
+                                <option value="@tag.TagId">@tag.TagName</option>
+                            }</select></div>
+                    <div class="form-group tag-helpers"><button type="button" id="suggestTagBtn" class="btn btn-info btn-sm" @(isOffline ? "disabled" : "")>Gợi ý Tag</button><div id="tagSuggestions"></div></div>
+                    <div class="form-group"><label for="ImageFile">Ảnh bìa:</label><input type="file" id="ImageFile" name="ImageFile" accept=".png, .jpg, .jpeg" class="form-control-file"></div>
+                    <button type="submit" id="submitFormBtn" class="btn btn-primary" @(isOffline ? "disabled" : "")>Lưu Tin Tức</button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js" integrity="sha512-VEd+nq25CkR676O+pLBnDW09R7VQX9Mdiij052gVCp5yVH3jGtH70Ho/UUv4mJDsEdTvqRCFZg0NKGiojGnUCw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="~/lib/signalr/signalr.min.js"></script>
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // Get offline status from C#
+            const isOffline = @(isOffline.ToString().ToLower());
+
+            // --- DOM Elements ---
+            const modal = document.getElementById("addNewsModal");
+            const openBtn = document.getElementById("openModalBtn");
+            const closeBtn = document.querySelector("#addNewsModal .close-btn");
+            const createForm = document.getElementById("createNewsForm");
+            const submitBtn = document.getElementById("submitFormBtn");
+            const modalError = document.getElementById("modalError");
+            const modalSuccess = document.getElementById("modalSuccess");
+            const suggestBtn = document.getElementById("suggestTagBtn");
+            const modalTitle = document.getElementById("modalTitle");
+            const hiddenArticleIdInput = document.getElementById("NewsArticleId");
+            const tagSelect = document.getElementById("TagIds");
+            const suggestionsDiv = document.getElementById("tagSuggestions");
+            const contentTextArea = document.getElementById("NewsContent");
+
+            // --- Helper functions ---
+            function resetMessages() {
+                if (modalError) { modalError.style.display = "none"; modalError.innerHTML = ""; }
+                if (modalSuccess) { modalSuccess.style.display = "none"; modalSuccess.innerHTML = ""; }
+            }
+            function showModalAlert(placeholder, message, type = 'danger') {
+                if (!placeholder) return;
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">${message}<button type="button" class="close" data-dismiss="alert">&times;</button></div>`;
+                placeholder.innerHTML = '';
+                placeholder.append(wrapper);
+                placeholder.style.display = 'block';
+            }
+
+            // --- Modal Open/Close/CRUD Logic (with offline checks) ---
+            window.openCreateModal = () => {
+                if (isOffline) { alert("Chức năng không khả dụng khi đang ở chế độ ngoại tuyến."); return; }
+                resetMessages();
+                createForm.reset();
+                if (tagSelect) Array.from(tagSelect.options).forEach(opt => opt.selected = false);
+                if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+                modalTitle.textContent = "Thêm Tin Tức Mới";
+                if (submitBtn) submitBtn.textContent = "Lưu Tin Tức";
+                createForm.action = '@Url.Action("Create", "NewsArticle")';
+                hiddenArticleIdInput.value = "0";
+                if (modal) modal.style.display = "block";
+            };
+            if (openBtn) openBtn.onclick = window.openCreateModal;
+
+            window.openEditModal = async (id) => {
+                if (isOffline) { alert("Chức năng không khả dụng khi đang ở chế độ ngoại tuyến."); return; }
+                resetMessages();
+                createForm.reset();
+                if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+                modalTitle.textContent = "Đang tải...";
+                if (submitBtn) submitBtn.textContent = "Cập nhật";
+                createForm.action = '@Url.Action("Update", "NewsArticle")';
+                if (modal) modal.style.display = "block";
+
+                const url = `@Url.Action("GetNewsArticle", "NewsArticle")?id=${id}`;
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        modalTitle.textContent = "Cập nhật Tin tức";
+                        hiddenArticleIdInput.value = data.newsArticleID;
+                        document.getElementById("NewsTitle").value = data.newsTitle || '';
+                        document.getElementById("Headline").value = data.headline || '';
+                        document.getElementById("NewsContent").value = data.newsContent || '';
+                        document.getElementById("NewsSource").value = data.newsSource || '';
+                        document.getElementById("CategoryId").value = data.categoryId || '';
+                        document.getElementById("NewsStatus").value = data.newsStatus !== null ? data.newsStatus.toString() : 'true';
+                        if (tagSelect && data.tagIds) {
+                            Array.from(tagSelect.options).forEach(opt => { opt.selected = data.tagIds.includes(parseInt(opt.value)); });
+                        }
+                    } else { showModalAlert(modalError, "Không thể tải dữ liệu để sửa."); setTimeout(() => { if (modal) modal.style.display = 'none' }, 2000); }
+                } catch (error) { showModalAlert(modalError, "Lỗi kết nối khi tải dữ liệu."); setTimeout(() => { if (modal) modal.style.display = 'none' }, 2000); }
+            };
+
+            window.deleteArticle = async (id) => {
+                if (isOffline) { alert("Chức năng không khả dụng khi đang ở chế độ ngoại tuyến."); return; }
+                if (!confirm('Bạn chắc chắn muốn xóa bài viết này?')) return;
+                const url = '@Url.Action("Delete", "NewsArticle")';
+                const formData = new FormData(); formData.append('id', id);
+                try {
+                    const response = await fetch(url, { method: 'POST', body: formData });
+                    if (response.ok) { alert('Xóa thành công!'); location.reload(); }
+                    else { const err = await response.json(); alert(`Xóa thất bại: ${err.message || response.statusText}`); }
+                } catch (error) { alert(`Lỗi kết nối khi xóa: ${error.message}`); }
+            };
+
+            document.querySelectorAll('.edit-btn').forEach(btn => btn.onclick = () => window.openEditModal(btn.dataset.id));
+            document.querySelectorAll('.delete-btn').forEach(btn => btn.onclick = () => window.deleteArticle(btn.dataset.id));
+
+            if (createForm) {
+                createForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+                    if (isOffline) { showModalAlert(modalError, "Không thể lưu khi offline."); return; }
+                    resetMessages();
+                    const isUpdate = parseInt(hiddenArticleIdInput.value) > 0;
+                    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = isUpdate ? "Đang cập nhật..." : "Đang lưu..."; }
+                    const saveFormData = new FormData(createForm);
+                    const saveUrl = createForm.action;
+
+                    try {
+                        const response = await fetch(saveUrl, { method: "POST", body: saveFormData });
+                        if (response.ok) {
+                            const result = await response.json();
+                            if (result.success) {
+                                showModalAlert(modalSuccess, isUpdate ? "Cập nhật thành công!" : "Thêm thành công!", 'success');
+                                setTimeout(() => {
+                                    if (modal) modal.style.display = "none";
+                                    if (isUpdate) { // Only reload on update
+                                        location.reload();
+                                    }
+                                    // On create, don't reload; wait for SignalR
+                                }, 1500);
+                            } else { showModalAlert(modalError, result.message || "Lưu thất bại."); }
+                        } else {
+                            let errorMsg = `Lỗi ${response.status}: `;
+                            try { const errorData = await response.json(); errorMsg += (errorData.message || JSON.stringify(errorData)); }
+                            catch { errorMsg += response.statusText; }
+                            showModalAlert(modalError, errorMsg);
+                        }
+                    } catch (error) { showModalAlert(modalError, `Lỗi kết nối: ${error.message}`); }
+                    finally { if (submitBtn) { submitBtn.disabled = isOffline; submitBtn.textContent = isUpdate ? "Cập nhật" : "Lưu Tin Tức"; } }
+                });
+            }
+
+            if (suggestBtn) {
+                suggestBtn.addEventListener("click", async function () {
+                    if (isOffline) { alert("Chức năng không khả dụng khi offline."); return; }
+                    const content = contentTextArea ? contentTextArea.value : null;
+                    if (!content || content.trim() === "") { alert("Vui lòng nhập nội dung trước."); return; }
+                    suggestBtn.disabled = true; suggestBtn.textContent = "Đang...";
+                    if (suggestionsDiv) suggestionsDiv.style.display = "none";
+                    const url = '@Url.Action("SuggestTags", "NewsArticle")';
+
+                    try {
+                        const response = await fetch(url, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content }) });
+                        if (response.ok) {
+                            const suggestedTags = await response.json();
+                            if (suggestionsDiv) {
+                                if (suggestedTags && suggestedTags.length > 0) {
+                                    suggestionsDiv.innerHTML = "Gợi ý: " + suggestedTags.join(', ');
+                                    suggestionsDiv.style.display = "block";
+                                    let foundCount = 0;
+                                    if (tagSelect) Array.from(tagSelect.options).forEach(option => { if (suggestedTags.includes(option.text)) { option.selected = true; foundCount++; } });
+                                    if (foundCount > 0) suggestionsDiv.innerHTML += `<br><i>(Đã tự động chọn ${foundCount} tag khớp.)</i>`;
+                                } else { suggestionsDiv.innerHTML = "Không tìm thấy gợi ý."; suggestionsDiv.style.display = "block"; }
+                            }
+                        } else { if (suggestionsDiv) { const err = await response.json(); suggestionsDiv.innerHTML = `Lỗi: ${err.message || 'Không thể gợi ý'}`; suggestionsDiv.style.display = "block"; } }
+                    } catch (error) { if (suggestionsDiv) { suggestionsDiv.innerHTML = `Lỗi kết nối AI: ${error.message}`; suggestionsDiv.style.display = "block"; } }
+                    finally { suggestBtn.disabled = isOffline; suggestBtn.textContent = "Gợi ý Tag từ Nội dung"; }
+                });
+            }
+
+            if (closeBtn) { closeBtn.onclick = function () { if (modal) modal.style.display = "none"; } }
+            window.onclick = function (event) { if (event.target == modal) { if (modal) modal.style.display = "none"; } }
+
+        }); // End DOMContentLoaded for page-specific logic
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const isOffline = @(isOffline.ToString().ToLower());
+            if (isOffline) {
+                console.log("Offline mode. SignalR connection not started.");
+                return; // Don't connect if offline
+            }
+
+            // --- Notification Elements ---
+            const notificationIcon = document.getElementById("notification-icon");
+            const notificationCount = document.getElementById("notification-count");
+            const notificationList = document.getElementById("notification-list");
+            const noNotificationMessage = document.getElementById("no-notification-message");
+
+            // --- Toastr Config ---
+            toastr.options = { "closeButton": true, "progressBar": true, "positionClass": "toast-top-right", "timeOut": "10000", "extendedTimeOut": "2000" };
+
+            // --- Notification Storage (Using sessionStorage) ---
+            const MAX_NOTIFICATIONS = 10;
+            let recentNotifications = JSON.parse(sessionStorage.getItem('recentNotifications') || '[]');
+            let unreadCount = parseInt(sessionStorage.getItem('unreadNotificationCount') || '0');
+
+            // --- Function to add a notification ---
+            function addRecentNotification(notification) {
+                recentNotifications.unshift(notification);
+                if (recentNotifications.length > MAX_NOTIFICATIONS) recentNotifications.pop();
+                sessionStorage.setItem('recentNotifications', JSON.stringify(recentNotifications));
+
+                // Only increment unread count if the dropdown is NOT open
+                if (!$('#notificationDropdown').parent().hasClass('show')) {
+                    unreadCount++;
+                    sessionStorage.setItem('unreadNotificationCount', unreadCount.toString());
+                }
+
+                updateNotificationUI();
+            }
+
+            // --- Function to update the bell dropdown UI ---
+            function updateNotificationUI() {
+                if (!notificationList || !notificationIcon || !notificationCount) return;
+
+                notificationList.innerHTML = ''; // Clear old list
+
+                if (recentNotifications.length === 0) {
+                    notificationList.innerHTML = '<li class="dropdown-item text-muted small" id="no-notification-message">Không có thông báo mới</li>';
+                    notificationIcon.classList.remove('has-new');
+                    notificationCount.style.display = 'none';
+                    return;
+                }
+
+                // Add items to dropdown
+                recentNotifications.forEach(noti => {
+                    const listItem = document.createElement('li');
+                    const linkTarget = noti.articleUrl ? 'target="_blank"' : '';
+                    // URL from backend is absolute
+                    const href = noti.articleUrl || '#';
+
+                    const link = document.createElement('a');
+                    link.className = 'dropdown-item small';
+                    link.href = href;
+                    if (noti.articleUrl) link.target = "_blank";
+
+                    const messageSpan = document.createElement('span');
+                    messageSpan.textContent = noti.message;
+                    messageSpan.style.fontWeight = "bold";
+
+                    const timeSpan = document.createElement('small');
+                    timeSpan.className = 'd-block text-muted';
+                    timeSpan.textContent = noti.timestamp ? new Date(noti.timestamp).toLocaleString("vi-VN") : new Date().toLocaleString("vi-VN");
+
+                    link.appendChild(messageSpan);
+                    link.appendChild(timeSpan);
+                    listItem.appendChild(link);
+                    notificationList.appendChild(listItem);
+                });
+
+                // Update badge and icon
+                if (unreadCount > 0) {
+                    notificationIcon.classList.add('has-new');
+                    notificationCount.textContent = unreadCount > 9 ? '9+' : unreadCount.toString();
+                    notificationCount.style.display = 'inline-block';
+                } else {
+                    notificationIcon.classList.remove('has-new');
+                    notificationCount.style.display = 'none';
+                }
+            }
+
+            // --- Event: Reset unread count when dropdown is opened ---
+            $('#notificationDropdown').on('show.bs.dropdown', function () {
+                unreadCount = 0;
+                sessionStorage.setItem('unreadNotificationCount', '0');
+                updateNotificationUI();
+            });
+
+            // --- SignalR Connection ---
+            const signalRHubUrl = "@(apiBaseUrl)/hubs/notifications";
+
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl(signalRHubUrl)
+                .configureLogging(signalR.LogLevel.Warning)
+                .withAutomaticReconnect()
+                .build();
+
+            // --- Event: Listen for "ReceiveNotification" from Hub ---
+            connection.on("ReceiveNotification", (data) => {
+                console.log("📢 Notification received:", data);
+
+                if (!data || !data.message) return;
+
+                const notification = {
+                    message: data.message,
+                    articleUrl: data.articleUrl, // This is the full URL from backend
+                    timestamp: new Date().toISOString() // Add timestamp on arrival
+                };
+
+                // 1. Show Toast
+                let toastMessage = notification.message;
+                if (notification.articleUrl) {
+                    toastMessage = `<a href="${notification.articleUrl}" target="_blank" style="color: white; text-decoration: underline;">${notification.message}</a>`;
+                }
+                toastr.success(toastMessage, 'Thông báo mới!');
+
+                // 2. Add to bell list
+                addRecentNotification(notification);
+
+                // 3. (Optional) Refresh the page if on page 1 to show the new item
+                const currentPageInfo = document.getElementById("currentPageInfo");
+                const currentPage = currentPageInfo ? parseInt(currentPageInfo.getAttribute('data-page')) || 1 : 1;
+                const searchInput = document.querySelector("input[name='searchString']");
+                const searchVal = searchInput ? searchInput.value : "";
+                if (currentPage === 1 && !searchVal) { // Only reload if on page 1 and not searching
+                    console.log("On page 1, reloading to show new item.");
+                    setTimeout(() => location.reload(), 2000); // Reload after 2s
+                }
+            });
+
+            // --- Start Connection ---
+            async function startSignalRConnection() {
+                try {
+                    await connection.start();
+                    console.log("✅ SignalR connected to", signalRHubUrl);
+                } catch (err) {
+                    console.error("❌ SignalR connection error:", err);
+                    setTimeout(startSignalRConnection, 5000);
+                }
+            }
+
+            connection.onclose(async () => { console.log("SignalR Connection Closed. Reconnecting..."); });
+
+            startSignalRConnection();
+
+            // Update UI on load with stored notifications
+            updateNotificationUI();
+
+        }); // End DOMContentLoaded for SignalR
+    </script>
+</body>
+</html>

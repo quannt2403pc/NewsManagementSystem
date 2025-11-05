@@ -1,0 +1,188 @@
+﻿@inject IConfiguration Configuration 
+@{
+    var apiBaseUrl = Configuration["ApiBaseUrl"]; // Lấy URL Backend API
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - FUNews Management</title> @* Tiêu đề chung *@
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" integrity="sha512-vKMx8UnXk60zUwyUnUPM3HbQo8QfmNx7+ltw8Pm5zLusl1XIfwcxo8DbWCqMGKaWeNxWA8yrx5v3SaVpMvR3CA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" /> @* Ví dụ file CSS tùy chỉnh *@
+
+    <style>
+        /* CSS cho Notification Bell (có thể đặt trong site.css) */
+        .notification-container { position: fixed; top: 15px; right: 25px; z-index: 1060; }
+        .notification-container .dropdown-menu { min-width: 300px; max-height: 400px; overflow-y: auto; }
+        .notification-container .dropdown-item { white-space: normal; font-size: 0.9rem; }
+        #notification-icon.has-new { color: #dc3545; animation: ring 1.5s ease-in-out infinite; }
+        #notification-count { position: absolute; top: -5px; right: -5px; font-size: 0.7em; } /* Điều chỉnh vị trí badge */
+        @@keyframes ring { 0%{transform:rotate(0)} 10%{transform:rotate(14deg)} 20%{transform:rotate(-8deg)} 30%{transform:rotate(14deg)} 40%{transform:rotate(-4deg)} 50%{transform:rotate(10deg)} 60%{transform:rotate(0)} 100%{transform:rotate(0)} }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">FUNews</a> @* Link trang chủ *@
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="NewsArticle" asp-action="Index">Quản lý Tin tức</a>
+                        </li>
+                         <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Category" asp-action="Index">Quản lý Danh mục</a>
+                        </li>
+                         <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Tag" asp-action="Index">Quản lý Thẻ</a>
+                        </li>
+                         <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Account" asp-action="Index">Quản lý Tài khoản</a> @* Thêm link này *@
+                        </li>
+                        @* Thêm các link khác nếu cần *@
+                    </ul>
+
+                    <ul class="navbar-nav">
+                        <li class="nav-item dropdown notification-container">
+                            <a class="nav-link" href="#" id="notificationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Thông báo">
+                                <i id="notification-icon" class="fas fa-bell fa-lg"></i>
+                                <span id="notification-count" class="badge badge-danger badge-pill" style="display: none;"></span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationDropdown" id="notification-list">
+                                <li class="dropdown-item text-muted">Không có thông báo mới</li>
+                            </ul>
+                        </li>
+                         @* Thêm logic hiển thị tên người dùng hoặc nút đăng nhập ở đây *@
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container-fluid"> @* Container chính cho nội dung trang *@
+        <main role="main" class="pb-3">
+            @RenderBody() @* Nội dung của View cụ thể sẽ được chèn vào đây *@
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="container-fluid">
+            &copy; @DateTime.Now.Year - FUNews Management System
+        </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js" integrity="sha512-VEd+nq25CkR676O+pLBnDW09R7VQX9Mdiij052gVCp5yVH3jGtH70Ho/UUv4mJDsEdTvqRCFZg0NKGiojGnUCw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.5/signalr.min.js"></script> @* Link SignalR Client (kiểm tra version nếu cần) *@
+    <script src="~/js/site.js" asp-append-version="true"></script> @* Ví dụ file JS tùy chỉnh *@
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Toastr config
+            toastr.options = { "closeButton": true, "progressBar": true, "positionClass": "toast-top-right", "timeOut": "5000", "extendedTimeOut": "1000" };
+
+            // Recent notifications
+            const MAX_NOTIFICATIONS = 10;
+            let recentNotifications = JSON.parse(sessionStorage.getItem('recentNotifications') || '[]');
+            const notificationListElement = document.getElementById('notification-list');
+            const notificationIcon = document.getElementById('notification-icon');
+            const notificationCountBadge = document.getElementById('notification-count');
+            let unreadCount = parseInt(sessionStorage.getItem('unreadNotificationCount') || '0'); // Track unread count
+
+            function addRecentNotification(notification) {
+                recentNotifications.unshift(notification);
+                if (recentNotifications.length > MAX_NOTIFICATIONS) recentNotifications.pop();
+                sessionStorage.setItem('recentNotifications', JSON.stringify(recentNotifications));
+                unreadCount++; // Increment unread count
+                sessionStorage.setItem('unreadNotificationCount', unreadCount.toString());
+                updateNotificationUI();
+            }
+
+            function updateNotificationUI() {
+                if (!notificationListElement || !notificationIcon || !notificationCountBadge) return;
+
+                notificationListElement.innerHTML = ''; // Clear old list
+                if (recentNotifications.length === 0) {
+                    notificationListElement.innerHTML = '<li class="dropdown-item text-muted small">Không có thông báo</li>';
+                    notificationIcon.classList.remove('has-new');
+                    notificationCountBadge.style.display = 'none';
+                    return;
+                }
+
+                recentNotifications.forEach(noti => {
+                    const listItem = document.createElement('li');
+                    // Add target="_blank" to open in new tab if URL exists
+                    const linkTarget = noti.articleUrl ? 'target="_blank"' : '';
+                    listItem.innerHTML = `<a class="dropdown-item small" href="${noti.articleUrl || '#'}" ${linkTarget}>${noti.message}</a>`;
+                    notificationListElement.appendChild(listItem);
+                });
+
+                // Update badge and icon based on unread count
+                if (unreadCount > 0) {
+                     notificationIcon.classList.add('has-new');
+                     notificationCountBadge.textContent = unreadCount > 9 ? '9+' : unreadCount.toString();
+                     notificationCountBadge.style.display = 'inline-block';
+                } else {
+                     notificationIcon.classList.remove('has-new');
+                     notificationCountBadge.style.display = 'none';
+                }
+            }
+
+            // Reset unread count when dropdown is opened
+            $('#notificationDropdown').on('show.bs.dropdown', function () {
+                unreadCount = 0;
+                sessionStorage.setItem('unreadNotificationCount', '0');
+                updateNotificationUI(); // Update immediately to clear badge/animation
+            });
+
+
+            // SignalR Connection
+            const signalRHubUrl = "@(apiBaseUrl)/hubs/notifications"; // Use URL from Configuration
+
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl(signalRHubUrl)
+                .configureLogging(signalR.LogLevel.Information)
+                .withAutomaticReconnect()
+                .build();
+
+            // Listen for messages
+            connection.on("ReceiveNotification", (notification) => {
+                console.log("Notification received:", notification);
+                let toastMessage = notification.message;
+                if (notification.articleUrl) {
+                    toastMessage = `<a href="${notification.articleUrl}" target="_blank" style="color: white; text-decoration: underline;">${notification.message}</a>`;
+                }
+                toastr.success(toastMessage, 'Thông báo mới!');
+                addRecentNotification(notification);
+            });
+
+            // Start connection
+            async function startSignalRConnection() {
+                try {
+                    await connection.start();
+                    console.log("SignalR Connected.");
+                } catch (err) {
+                    console.error("SignalR Connection Error: ", err);
+                    setTimeout(startSignalRConnection, 5000); // Retry after 5 seconds
+                }
+            }
+
+            connection.onclose(async () => { console.log("SignalR Connection Closed. Reconnecting..."); });
+
+            startSignalRConnection();
+            updateNotificationUI(); // Initial UI update
+        });
+    </script>
+    @RenderSection("Scripts", required: false)
+
+</body>
+</html>
