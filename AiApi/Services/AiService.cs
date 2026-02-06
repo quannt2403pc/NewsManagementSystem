@@ -57,6 +57,7 @@ namespace AiApi.Services
                              $"Và đây là danh sách các thẻ hiện có:\n[{availableTagsString}]\n\n" +
                              "Hãy chọn những thẻ phù hợp nhất từ danh sách trên.";
             int x = 1;
+            int a = 2;
             var schema = new ResponseSchema
             {
 
