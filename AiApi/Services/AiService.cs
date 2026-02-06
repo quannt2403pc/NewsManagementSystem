@@ -61,6 +61,7 @@ namespace AiApi.Services
             int b = 3;
             int c = 4;
             int z = 36;
+            int anb = 444;
             var schema = new ResponseSchema
             {
 
