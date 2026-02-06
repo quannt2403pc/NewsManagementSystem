@@ -58,6 +58,8 @@ namespace AiApi.Services
                              "Hãy chọn những thẻ phù hợp nhất từ danh sách trên.";
             int x = 1;
             int a = 2;
+            int b = 3;
+            int c = 4;
             var schema = new ResponseSchema
             {
 
