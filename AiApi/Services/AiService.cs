@@ -56,9 +56,11 @@ namespace AiApi.Services
             var userPrompt = $"Dưới đây là nội dung bài viết:\n\n{content}\n\n" +
                              $"Và đây là danh sách các thẻ hiện có:\n[{availableTagsString}]\n\n" +
                              "Hãy chọn những thẻ phù hợp nhất từ danh sách trên.";
-
+            int x = 1;
+            int a = 2;
             var schema = new ResponseSchema
             {
+
                 Type = "OBJECT",
                 Properties = new Dictionary<string, SchemaProperty>
                 {
@@ -108,7 +110,6 @@ namespace AiApi.Services
             }
             // ----------------------------------------------------
 
-            // --- BƯỚC 3: PHÂN TÍCH KẾT QUẢ TỪ GEMINI ---
             SuggestedTagsResponse? tagsResponse = null;
             List<string> selectedTagsFromAi = new List<string>();
             try
@@ -118,10 +119,8 @@ namespace AiApi.Services
             }
             catch (JsonException jsonEx)
             {
-                // Ghi log lỗi nghiêm trọng hơn nếu cần
                 return new List<string>();
             }
-            // ----------------------------------------------------
 
             var finalSuggestions = selectedTagsFromAi
                                     .Select(tag => tag?.Trim())
@@ -133,13 +132,11 @@ namespace AiApi.Services
             return finalSuggestions;
         }
 
-        // --- Hàm GetExistingTagsAsync() ---
         private async Task<List<TagDto>> GetExistingTagsAsync()
         {
             var coreApiUrl = _configuration["CoreApiBaseUrl"];
             if (string.IsNullOrEmpty(coreApiUrl))
             {
-                // Ghi log lỗi nghiêm trọng hơn nếu cần
                 throw new InvalidOperationException("CoreApiBaseUrl is not configured.");
             }
 
@@ -157,13 +154,11 @@ namespace AiApi.Services
                 }
                 else
                 {
-                    // Ghi log lỗi nghiêm trọng hơn nếu cần
                     return new List<TagDto>();
                 }
             }
             catch (Exception ex)
             {
-                // Ghi log lỗi nghiêm trọng hơn nếu cần
                 return new List<TagDto>();
             }
         }
